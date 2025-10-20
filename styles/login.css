@@ -1,0 +1,135 @@
+:root {
+  --bg1: #f6f8ff;
+  --bg2: #e8f0ff;
+  --card: #ffffff;
+  --accent: #3751ff;
+  --muted: #6b7280;
+  --radius: 14px;
+}
+
+* {
+  box-sizing: border-box;
+  font-family: Inter, Roboto, system-ui, -apple-system, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+}
+
+html, body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, var(--bg1), var(--bg2));
+  padding: 24px;
+}
+
+.card {
+  width: 100%;
+  max-width: 420px;
+  background: var(--card);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 30px rgba(18, 38, 63, 0.08);
+  padding: 28px;
+  text-align: center;
+}
+
+.brand {
+  width: 72px;
+  height: 72px;
+  border-radius: 18px;
+  margin: 0 auto 12px;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  font-size: 28px;
+  color: white;
+  background: linear-gradient(135deg, var(--accent), #6a7bff);
+  box-shadow: 0 6px 18px rgba(55, 81, 255, 0.18);
+}
+
+h1 {
+  margin: 6px 0 18px;
+  font-size: 20px;
+}
+
+.lead {
+  margin: 0 0 18px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+form {
+  display: grid;
+  gap: 12px;
+  text-align: left;
+}
+
+label {
+  font-size: 13px;
+  color: #374151;
+}
+
+input[type="text"],
+input[type="password"] {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid #e6e9f2;
+  background: #fbfdff;
+  font-size: 14px;
+  outline: none;
+  transition: box-shadow .14s, border-color .14s;
+}
+
+input[type="text"]:focus,
+input[type="password"]:focus {
+  border-color: var(--accent);
+  box-shadow: 0 6px 18px rgba(55, 81, 255, 0.08);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.checkbox {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+button {
+  width: 100%;
+  padding: 12px;
+  border-radius: 10px;
+  border: 0;
+  background: linear-gradient(90deg, var(--accent), #5b66ff);
+  color: white;
+  font-weight: 600;
+  font-size: 15px;
+  cursor: pointer;
+  box-shadow: 0 8px 20px rgba(55, 81, 255, 0.12);
+}
+
+.small {
+  font-size: 13px;
+  color: var(--muted);
+  text-align: center;
+  margin-top: 12px;
+}
+
+.link {
+  color: var(--accent);
+  text-decoration: none;
+  font-size: 13px;
+}
+
+@media (max-width: 420px) {
+  .card {
+    padding: 20px;
+  }
+}

@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>OrientarSO — Login</title>
+  <link rel="stylesheet" href="styles/login.html" />
+</head>
+<body>
+  <main class="card" role="main">
+    <div class="brand" aria-hidden>O</div>
+    <h1>OrientarSO</h1>
+    <p class="lead">Inicia sesión para continuar</p>
+
+    <form id="loginForm" autocomplete="on">
+      <div>
+        <label for="user">Usuario o correo</label>
+        <input id="user" name="user" type="text" placeholder="ej: juan@correo.com" required />
+      </div>
+
+      <div>
+        <label for="pass">Contraseña</label>
+        <input id="pass" name="pass" type="password" placeholder="••••••••" required minlength="4" />
+      </div>
+
+      <div class="row">
+        <label class="checkbox">
+          <input type="checkbox" name="remember" /> Recordarme
+        </label>
+        <a href="#" class="link">¿Olvidaste la contraseña?</a>
+      </div>
+
+      <button type="submit">Entrar</button>
+    </form>
+
+    <p class="small">
+      ¿Aún no tienes cuenta? <a href="#" class="link">Registrate</a>
+    </p>
+  </main>
+
+  <script>
+    document.getElementById('loginForm').addEventListener('submit', function(e){
+      e.preventDefault();
+      const user = document.getElementById('user').value.trim();
+      const pass = document.getElementById('pass').value;
+      if(!user || !pass){
+        alert('Por favor llena usuario y contraseña.');
+        return;
+      }
+      console.log('Demo — credenciales:', {user, pass});
+      alert('Demo: credenciales recibidas. (No se envió nada)');
+    });
+  </script>
+</body>
+</html>

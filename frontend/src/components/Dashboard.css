@@ -1,0 +1,411 @@
+.dashboard {
+  display: flex;
+  min-height: 100vh;
+  background-color: #f5f7fa;
+}
+
+.sidebar {
+  width: 250px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+}
+
+.logo h2 {
+  margin-bottom: 30px;
+  text-align: center;
+  font-size: 1.5rem;
+}
+
+.nav-menu {
+  list-style: none;
+  padding: 0;
+  flex: 1;
+}
+
+.nav-menu li {
+  padding: 15px 20px;
+  cursor: pointer;
+  border-radius: 8px;
+  margin-bottom: 8px;
+  transition: all 0.3s;
+  font-size: 1rem;
+}
+
+.nav-menu li:hover {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+.nav-menu li.active {
+  background-color: rgba(255, 255, 255, 0.3);
+  font-weight: bold;
+}
+
+.btn-logout {
+  padding: 12px;
+  background-color: rgba(255, 255, 255, 0.2);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: all 0.3s;
+}
+
+.btn-logout:hover {
+  background-color: rgba(255, 255, 255, 0.3);
+}
+
+.main-content {
+  flex: 1;
+  padding: 40px;
+  overflow-y: auto;
+}
+
+.inicio-container h2 {
+  color: #333;
+  margin-bottom: 10px;
+}
+
+.subtitle {
+  color: #666;
+  margin-bottom: 30px;
+}
+
+.hero-section {
+  position: relative;
+  width: 100%;
+  height: 350px;
+  border-radius: 16px;
+  overflow: hidden;
+  margin-bottom: 40px;
+}
+
+.hero-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.hero-text {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);
+  padding: 40px 30px 30px;
+  color: white;
+}
+
+.hero-text h1 {
+  font-size: 2.5rem;
+  margin-bottom: 10px;
+  text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+}
+
+.hero-text p {
+  font-size: 1.2rem;
+  opacity: 0.9;
+}
+
+.menu-opciones {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 25px;
+  margin-top: 30px;
+}
+
+.menu-card {
+  background: white;
+  padding: 30px;
+  border-radius: 12px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  cursor: pointer;
+  transition: all 0.3s;
+  text-align: center;
+}
+
+.menu-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 15px rgba(0, 0, 0, 0.15);
+}
+
+.menu-icon {
+  font-size: 3rem;
+  margin-bottom: 15px;
+}
+
+.menu-card h3 {
+  color: #333;
+  margin-bottom: 10px;
+}
+
+.menu-card p {
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.prueba-container h2,
+.resultados-container h2,
+.universidades-container h2 {
+  color: #333;
+  margin-bottom: 20px;
+}
+
+.prueba-container > p {
+  color: #666;
+  margin-bottom: 30px;
+}
+
+.prueba-card {
+  background: white;
+  padding: 25px;
+  border-radius: 12px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.prueba-card h3 {
+  color: #667eea;
+  margin-bottom: 15px;
+}
+
+.opciones {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 15px;
+  margin-top: 20px;
+}
+
+.btn-opcion {
+  padding: 15px;
+  background-color: #f8f9fa;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.95rem;
+  transition: all 0.3s;
+}
+
+.btn-opcion:hover {
+  background-color: #667eea;
+  color: white;
+  border-color: #667eea;
+}
+
+.resultado-card {
+  background: white;
+  padding: 25px;
+  border-radius: 12px;
+  margin-bottom: 25px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.resultado-card h3 {
+  color: #667eea;
+  margin-bottom: 20px;
+}
+
+.barra-progreso {
+  background-color: #e9ecef;
+  border-radius: 10px;
+  height: 30px;
+  margin-bottom: 15px;
+  overflow: hidden;
+}
+
+.barra-fill {
+  background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  padding-left: 15px;
+  font-weight: 500;
+  border-radius: 10px;
+}
+
+.recomendaciones {
+  background: white;
+  padding: 25px;
+  border-radius: 12px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.recomendaciones h3 {
+  color: #667eea;
+  margin-bottom: 15px;
+}
+
+.recomendaciones ul {
+  list-style: none;
+  padding: 0;
+}
+
+.recomendaciones li {
+  padding: 10px 0;
+  border-bottom: 1px solid #e9ecef;
+  color: #333;
+}
+
+.recomendaciones li:last-child {
+  border-bottom: none;
+}
+
+.universidades-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 25px;
+}
+
+.uni-card {
+  background: white;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s;
+}
+
+.uni-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 15px rgba(0, 0, 0, 0.15);
+}
+
+.uni-imagen {
+  width: 100%;
+  height: 180px;
+  object-fit: cover;
+}
+
+.uni-info {
+  padding: 20px;
+}
+
+.uni-info h3 {
+  color: #333;
+  margin-bottom: 5px;
+}
+
+.uni-ubicacion {
+  color: #666;
+  font-size: 0.9rem;
+  margin-bottom: 15px;
+}
+
+.uni-info h4 {
+  color: #667eea;
+  font-size: 1rem;
+  margin-bottom: 10px;
+}
+
+.uni-carreras {
+  list-style: none;
+  padding: 0;
+  margin-bottom: 20px;
+}
+
+.uni-carreras li {
+  padding: 5px 0;
+  color: #555;
+  font-size: 0.9rem;
+}
+
+.uni-carreras li::before {
+  content: "• ";
+  color: #667eea;
+}
+
+@media (max-width: 768px) {
+  .dashboard {
+    flex-direction: column;
+  }
+  
+  .sidebar {
+    width: 100%;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    padding: 15px;
+  }
+  
+  .logo h2 {
+    margin-bottom: 0;
+  }
+  
+  .nav-menu {
+    display: flex;
+    gap: 10px;
+  }
+  
+  .nav-menu li {
+    padding: 8px 12px;
+    font-size: 0.85rem;
+  }
+  
+  .btn-logout {
+    padding: 8px 15px;
+    font-size: 0.85rem;
+  }
+  
+  .main-content {
+    padding: 20px;
+  }
+  
+  .menu-opciones {
+    grid-template-columns: 1fr;
+  }
+  
+  .opciones {
+    grid-template-columns: 1fr;
+  }
+  
+  .universidades-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.configuracion-container h2 {
+  color: #333;
+  margin-bottom: 25px;
+}
+
+.config-card {
+  background: white;
+  padding: 25px;
+  border-radius: 12px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.config-card h3 {
+  color: #667eea;
+  margin-bottom: 20px;
+}
+
+.form-group {
+  margin-bottom: 15px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 5px;
+  color: #555;
+  font-weight: 500;
+}
+
+.form-group .form-control {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ced4da;
+  border-radius: 6px;
+  font-size: 1rem;
+  box-sizing: border-box;
+}
+
+.form-group .form-control:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}

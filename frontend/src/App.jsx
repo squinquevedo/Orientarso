@@ -3,7 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import Inicio from './components/Inicio';
 import Login from './components/Login';
 import Registro from './components/Registro';
-import Home from './components/Home';
+import Dashboard from './components/Dashboard';
 import './App.css';
 
 function App() {
@@ -13,7 +13,7 @@ function App() {
         <Route path="/" element={<Inicio />} />
         <Route path="/login" element={<Login />} />
         <Route path="/registro" element={<Registro />} />
-        <Route path="/home" element={<Home />} />
+        <Route path="/home" element={<Dashboard />} />
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     </Router>

@@ -13,6 +13,10 @@ function Inicio() {
         <h1>Bienvenido a Nuestra Empresa</h1>
         <p>Aquí va la información de la empresa, sus servicios, misión, visión, etc.</p>
         <Link to="/registro" className="registro-link">Regístrate</Link>
+        <br /><br />
+        <Link to="/home" style={{ color: '#007bff', textDecoration: 'underline' }}>
+          Ver módulo de orientación sin login
+        </Link>
       </div>
     </>
   );

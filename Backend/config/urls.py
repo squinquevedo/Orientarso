@@ -14,6 +14,4 @@ urlpatterns = [
     # DRF
     path('api-auth/', include('rest_framework.urls')),
     
-    # Admin
-    path('admin/', admin.site.urls),
 ]

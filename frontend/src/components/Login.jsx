@@ -2,6 +2,9 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import './Auth.css';
+import logoOrientarso from '../assets/logo.orientarso-removebg-preview.png';
+
+const API_BASE = 'http://localhost:8000';
 
 function Login() {
   const [username, setUsername] = useState('');
@@ -16,16 +19,15 @@ function Login() {
     setMessages([]);
 
     try {
-      const response = await axios.post('http://localhost:8000/api/login/', {
-        username,
-        password,
-      });
+      const response = await axios.post(
+        `${API_BASE}/api/login/`,
+        { username, password },
+        { withCredentials: true }
+      );
 
-      // Guardar token y username
-      localStorage.setItem('token', response.data.token);
-      localStorage.setItem('username', username);
+      localStorage.setItem('isAuthenticated', 'true');
+      localStorage.setItem('username', response.data.username || username);
 
-      // Redirigir a home
       navigate('/home');
     } catch (error) {
       setMessages([
@@ -40,9 +42,15 @@ function Login() {
   };
 
   return (
-    <div className="auth-container">
-      <div className="auth-card">
-        <h3 className="auth-title">Iniciar sesión</h3>
+    <>
+      <header className="auth-header">
+        <Link to="/" className="auth-logo-link" aria-label="Ir al inicio">
+          <img src={logoOrientarso} alt="Orientarso" className="auth-logo" />
+        </Link>
+      </header>
+      <div className="auth-container">
+        <div className="auth-card">
+          <h3 className="auth-title">Iniciar sesión</h3>
 
         {messages.map((msg, index) => (
           <div key={index} className={`alert alert-${msg.type}`}>
@@ -50,7 +58,7 @@ function Login() {
           </div>
         ))}
 
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} autoComplete="off">
           <div className="mb-3">
             <input
               type="email"
@@ -58,6 +66,7 @@ function Login() {
               placeholder="Correo electrónico"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
+              autoComplete="off"
               required
             />
           </div>
@@ -69,6 +78,7 @@ function Login() {
               placeholder="Contraseña"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              autoComplete="new-password"
               required
             />
           </div>
@@ -84,8 +94,9 @@ function Login() {
             <a href="#forgot-password">¿Olvidaste tu contraseña?</a>
           </div>
         </form>
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 

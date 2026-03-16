@@ -1,9 +1,26 @@
+.auth-header {
+  background: #2563EB;
+  padding: 16px 40px;
+}
+
+.auth-logo-link {
+  display: inline-flex;
+  align-items: center;
+}
+
+.auth-logo {
+  height: 44px;
+  width: auto;
+  display: block;
+}
+
 .auth-container {
   display: flex;
   justify-content: center;
   align-items: center;
-  height: 100vh;
+  min-height: calc(100vh - 76px);
   background-color: #f8f9fa;
+  padding: 24px 16px;
 }
 
 .auth-card {

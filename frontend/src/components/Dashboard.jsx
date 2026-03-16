@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
 import './Dashboard.css';
 
 const universidadesData = [
@@ -32,16 +33,29 @@ function Dashboard() {
   const navigate = useNavigate();
 
   useEffect(() => {
+    const isAuthenticated = localStorage.getItem('isAuthenticated') === 'true';
+    if (!isAuthenticated) {
+      navigate('/', { replace: true });
+      return;
+    }
     const user = localStorage.getItem('username');
     if (user) {
       setUsername(user);
     }
   }, [navigate]);
 
-  const handleLogout = () => {
-    localStorage.removeItem('username');
-    localStorage.removeItem('token');
-    navigate('/');
+  const handleLogout = async () => {
+    try {
+      await axios.post('http://localhost:8000/api/logout/', {}, { withCredentials: true });
+    } catch (error) {
+      // Si falla el backend igual limpiamos el cliente
+    } finally {
+      localStorage.removeItem('username');
+      localStorage.removeItem('token');
+      localStorage.removeItem('isAuthenticated');
+      sessionStorage.clear();
+      navigate('/', { replace: true });
+    }
   };
 
   const renderContent = () => {

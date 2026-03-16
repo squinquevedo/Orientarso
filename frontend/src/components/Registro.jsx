@@ -2,6 +2,9 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import './Auth.css';
+import logoOrientarso from '../assets/logo.orientarso-removebg-preview.png';
+
+const API_BASE = 'http://localhost:8000';
 
 function Registro() {
   const [formData, setFormData] = useState({
@@ -41,7 +44,7 @@ function Registro() {
     }
 
     try {
-      const response = await axios.post('http://localhost:8000/api/registro/', formData);
+      await axios.post(`${API_BASE}/api/registro/`, formData, { withCredentials: true });
 
       setMessages([
         {
@@ -52,7 +55,7 @@ function Registro() {
 
       setTimeout(() => {
         navigate('/login');
-      }, 2000);
+      }, 1200);
     } catch (error) {
       const errorMsg = error.response?.data?.error || 'Error al registrarse';
       setMessages([
@@ -67,8 +70,14 @@ function Registro() {
   };
 
   return (
-    <div className="auth-container">
-      <div className="auth-card">
+    <>
+      <header className="auth-header">
+        <Link to="/" className="auth-logo-link" aria-label="Ir al inicio">
+          <img src={logoOrientarso} alt="Orientarso" className="auth-logo" />
+        </Link>
+      </header>
+      <div className="auth-container">
+        <div className="auth-card">
         <h3 className="auth-title">Registro de Usuario</h3>
 
         {messages.map((msg, index) => (
@@ -102,6 +111,11 @@ function Registro() {
               placeholder="Número de Documento"
               value={formData.numero_documento}
               onChange={handleChange}
+              inputMode="numeric"
+              pattern="[0-9]*"
+              onKeyPress={(e) => {
+                if (!/[0-9]/.test(e.key)) e.preventDefault();
+              }}
               required
             />
           </div>
@@ -163,8 +177,9 @@ function Registro() {
             </Link>
           </div>
         </form>
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 

@@ -68,7 +68,7 @@ function Registro() {
 
   return (
     <div className="auth-container">
-      <div className="auth-card" style={{ width: '450px' }}>
+      <div className="auth-card">
         <h3 className="auth-title">Registro de Usuario</h3>
 
         {messages.map((msg, index) => (

@@ -39,6 +39,7 @@ def api_login(request):
                 'message': 'Login exitoso',
                 'username': authenticated.username,
                 'email': authenticated.email,
+                'first_name': authenticated.first_name,
             }, status=status.HTTP_200_OK)
         else:
             return Response({

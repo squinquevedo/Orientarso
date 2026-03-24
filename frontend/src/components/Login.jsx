@@ -27,6 +27,7 @@ function Login({ showHeader = true }) {
 
       localStorage.setItem('isAuthenticated', 'true');
       localStorage.setItem('username', response.data.username || username);
+      localStorage.setItem('fullName', response.data.first_name || '');
 
       navigate('/home');
     } catch (error) {

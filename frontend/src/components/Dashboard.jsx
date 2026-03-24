@@ -7,28 +7,67 @@ import iconHome from '../assets/house-door-fill.svg';
 import iconAccount from '../assets/person-circle.svg';
 import iconMoon from '../assets/moon-fill.svg';
 import iconSun from '../assets/brightness-high-fill.svg';
+import heroBanner from '../assets/areasimg.jpg';
+import iconEncuesta from '../assets/encuesta-128x128.png';
+import iconAnalisis from '../assets/análisis-128x128.png';
+import iconEducacion from '../assets/educación-128x128.png';
+import universidadesBanner from '../assets/unnamed.jpg';
+import javerianaImg from '../assets/javeriana.png';
+import bosqueImg from '../assets/Universidad El Bosque.jpeg';
+import tadeoImg from '../assets/Universidad Jorge Tadeo Lozano.jpg';
+import nacionalImg from '../assets/Universidad Nacional de Colombia.jpg';
+import pilotoImg from '../assets/Universidad Piloto de Colombia.jpg';
 
 const universidadesData = [
   {
-    id: 1,
-    nombre: 'Universidad de Panama',
-    carreras: ['Ingenieria', 'Medicina', 'Derecho', 'Arquitectura'],
-    ubicacion: 'Ciudad de Panama',
-    imagen: 'https://images.unsplash.com/photo-1562774053-701939374585?w=400'
+    id: 'javeriana',
+    nombre: 'Pontificia Universidad Javeriana',
+    ubicacion: 'Cra. 7 No. 40-62, Bogota',
+    resumen: 'Universidad reconocida en Bogota con opciones fuertes en negocios, tecnologia y expresion artistica.',
+    imagen: javerianaImg,
+    enlace: 'https://www.javeriana.edu.co/carrera-administracion-de-empresas',
+    areas: ['Administracion', 'Artes'],
+    programas: ['Administracion de Empresas', 'Artes Visuales']
   },
   {
-    id: 2,
-    nombre: 'Universidad Tecnologica de Panama',
-    carreras: ['Ingenieria Sistemas', 'Ingenieria Industrial', 'Electronica'],
-    ubicacion: 'Ciudad de Panama',
-    imagen: 'https://images.unsplash.com/photo-1541339907198-e08756dedf3f?w=400'
+    id: 'tadeo',
+    nombre: 'Universidad Jorge Tadeo Lozano',
+    ubicacion: 'Cra. 4 No. 22-61, Bogota',
+    resumen: 'Destaca por su propuesta en administracion, ingenieria y artes con una mirada creativa y actual.',
+    imagen: tadeoImg,
+    enlace: 'https://www.utadeo.edu.co/es/facultad/ciencias-economicas-y-administrativas/programa/bogota/administracion-de-empresas',
+    areas: ['Administracion', 'Tecnologia', 'Artes'],
+    programas: ['Administracion de Empresas', 'Ingenieria de Sistemas', 'Artes Plasticas']
   },
   {
-    id: 3,
-    nombre: 'Universidad Latina de Panama',
-    carreras: ['Comunicacion', 'Psicologia', 'Negocios', 'Turismo'],
-    ubicacion: 'Ciudad de Panama',
-    imagen: 'https://images.unsplash.com/photo-1523050854058-8df90110c9f1?w=400'
+    id: 'bosque',
+    nombre: 'Universidad El Bosque',
+    ubicacion: 'Av. Cra. 9 No. 131 A-02, Bogota',
+    resumen: 'Ofrece una formacion integral con alternativas en gestion, sistemas y procesos creativos.',
+    imagen: bosqueImg,
+    enlace: 'https://www.unbosque.edu.co/ciencias-economicas-y-administrativas/carrera/administracion-de-empresas',
+    areas: ['Administracion', 'Tecnologia', 'Artes'],
+    programas: ['Administracion de Empresas', 'Ingenieria de Sistemas', 'Artes Plasticas']
+  },
+  {
+    id: 'nacional',
+    nombre: 'Universidad Nacional de Colombia',
+    ubicacion: 'Ciudad Universitaria, Bogota',
+    resumen: 'Referente academico nacional con programas destacados en tecnologia y artes dentro de Bogota.',
+    imagen: nacionalImg,
+    enlace: 'https://ingenieria.bogota.unal.edu.co/es/formacion/pregrado/ingenieria-de-sistemas-y-computacion',
+    areas: ['Tecnologia', 'Artes'],
+    programas: ['Ingenieria de Sistemas y Computacion', 'Facultad de Artes']
+  },
+  {
+    id: 'piloto',
+    nombre: 'Universidad Piloto de Colombia',
+    ubicacion: 'Cra. 9 No. 45A-44, Bogota',
+    resumen: 'Una opcion enfocada en tecnologia para quienes buscan formacion en sistemas y proyectos digitales.',
+    imagen: pilotoImg,
+    enlace: 'https://www.unipiloto.edu.co/programas/pregrado/ingenieria-de-sistemas/',
+    areas: ['Tecnologia'],
+    programas: ['Ingenieria de Sistemas']
   }
 ];
 
@@ -50,8 +89,12 @@ function Dashboard() {
       navigate('/', { replace: true });
       return;
     }
+
+    const fullName = localStorage.getItem('fullName');
     const user = localStorage.getItem('username');
-    if (user) {
+    if (fullName) {
+      setUsername(fullName);
+    } else if (user) {
       setUsername(user);
     }
 
@@ -62,6 +105,7 @@ function Dashboard() {
         });
         const nombre = response?.data?.first_name;
         if (nombre) {
+          localStorage.setItem('fullName', nombre);
           setUsername(nombre);
         }
       } catch (error) {
@@ -78,6 +122,7 @@ function Dashboard() {
     } catch (error) {
       // Si falla el backend igual limpiamos el cliente
     } finally {
+      localStorage.removeItem('fullName');
       localStorage.removeItem('username');
       localStorage.removeItem('token');
       localStorage.removeItem('isAuthenticated');
@@ -105,24 +150,24 @@ function Dashboard() {
               <button className="btn btn-primary">Guardar cambios</button>
             </div>
             <div className="config-card">
-              <h3>Cambiar contraseña</h3>
+              <h3>Cambiar contrasena</h3>
               <div className="form-group">
-                <label>Contraseña actual:</label>
+                <label>Contrasena actual:</label>
                 <input type="password" className="form-control" />
               </div>
               <div className="form-group">
-                <label>Nueva contraseña:</label>
+                <label>Nueva contrasena:</label>
                 <input type="password" className="form-control" />
               </div>
               <div className="form-group">
-                <label>Confirmar contraseña:</label>
+                <label>Confirmar contrasena:</label>
                 <input type="password" className="form-control" />
               </div>
-              <button className="btn btn-primary">Actualizar contraseña</button>
+              <button className="btn btn-primary">Actualizar contrasena</button>
             </div>
           </div>
         );
-      
+
       case 'prueba':
         return (
           <div className="prueba-container">
@@ -130,17 +175,17 @@ function Dashboard() {
             <p>Responde las siguientes preguntas para descubrir tu carrera ideal.</p>
             <div className="prueba-card">
               <h3>Pregunta 1</h3>
-              <p>¿Qué actividad te gusta mas?</p>
+              <p>Que actividad te gusta mas?</p>
               <div className="opciones">
                 <button className="btn-opcion">Resolver problemas matematicos</button>
                 <button className="btn-opcion">Ayudar a otras personas</button>
-                <button className="btn-opcion">Crear artistico</button>
+                <button className="btn-opcion">Crear contenido artistico</button>
                 <button className="btn-opcion">Trabajar con tecnologia</button>
               </div>
             </div>
             <div className="prueba-card">
               <h3>Pregunta 2</h3>
-              <p>¿En qué entorno te gustaría trabajar?</p>
+              <p>En que entorno te gustaria trabajar?</p>
               <div className="opciones">
                 <button className="btn-opcion">Oficina</button>
                 <button className="btn-opcion">Hospital</button>
@@ -148,28 +193,28 @@ function Dashboard() {
                 <button className="btn-opcion">Al aire libre</button>
               </div>
             </div>
-            <button className="btn btn-primary">Enviar Respuestas</button>
+            <button className="btn btn-primary">Enviar respuestas</button>
           </div>
         );
-      
+
       case 'resultados':
         return (
           <div className="resultados-container">
             <h2>Tus Resultados</h2>
             <div className="resultado-card">
-              <h3>Areas de Mayor Afinidad</h3>
+              <h3>Areas de mayor afinidad</h3>
               <div className="barra-progreso">
-                <div className="barra-fill" style={{width: '85%'}}>Tecnologia - 85%</div>
+                <div className="barra-fill" style={{ width: '85%' }}>Tecnologia - 85%</div>
               </div>
               <div className="barra-progreso">
-                <div className="barra-fill" style={{width: '70%'}}>Ciencias - 70%</div>
+                <div className="barra-fill" style={{ width: '70%' }}>Ciencias - 70%</div>
               </div>
               <div className="barra-progreso">
-                <div className="barra-fill" style={{width: '55%'}}>Artes - 55%</div>
+                <div className="barra-fill" style={{ width: '55%' }}>Artes - 55%</div>
               </div>
             </div>
             <div className="recomendaciones">
-              <h3>Carreras Recomendadas</h3>
+              <h3>Carreras recomendadas</h3>
               <ul>
                 <li>Ingenieria en Sistemas</li>
                 <li>Ciencias de la Computacion</li>
@@ -178,61 +223,127 @@ function Dashboard() {
             </div>
           </div>
         );
-      
+
       case 'universidades':
         return (
           <div className="universidades-container">
             <h2>Universidades</h2>
-            <div className="universidades-grid">
-              {universidadesData.map((uni) => (
-                <div key={uni.id} className="uni-card">
-                  <img src={uni.imagen} alt={uni.nombre} className="uni-imagen" />
-                  <div className="uni-info">
-                    <h3>{uni.nombre}</h3>
-                    <p className="uni-ubicacion">{uni.ubicacion}</p>
-                    <h4>Carreras disponibles:</h4>
-                    <ul className="uni-carreras">
-                      {uni.carreras.map((carrera, index) => (
-                        <li key={index}>{carrera}</li>
-                      ))}
-                    </ul>
-                    <button className="btn btn-secondary">Mas Informacion</button>
-                  </div>
-                </div>
-              ))}
-            </div>
+            <section className="universidades-hero">
+              <div className="universidades-hero-image-wrap">
+                <img
+                  src={universidadesBanner}
+                  alt="Espacio universitario"
+                  className="universidades-hero-image"
+                />
+              </div>
+              <div className="universidades-hero-copy">
+                <div className="universidades-hero-badge">Tu futuro comienza aqui</div>
+                <p className="universidades-hero-quote">
+                  La universidad correcta puede transformar tus talentos en oportunidades reales
+                  y acercarte al futuro profesional que siempre has imaginado.
+                </p>
+                <p className="universidades-hero-subtext">
+                  Explora, compara y da el primer paso hacia una meta que de verdad te emocione.
+                </p>
+              </div>
+            </section>
+            <section className="universidades-area">
+              <div className="universidades-area-header">
+                <h3>Universidades en Bogota</h3>
+                <p>
+                  Aqui cada universidad aparece una sola vez. En cada tarjeta puedes ver las
+                  areas y programas con los que se relaciona dentro de tu busqueda.
+                </p>
+              </div>
+              <div className="universidades-grid">
+                {universidadesData.map((uni) => (
+                  <article key={uni.id} className="uni-card">
+                    <img src={uni.imagen} alt={uni.nombre} className="uni-imagen" />
+                    <div className="uni-info">
+                      <div className="uni-tags">
+                        {uni.areas.map((area) => (
+                          <span key={area} className="uni-programa-tag">{area}</span>
+                        ))}
+                      </div>
+                      <h3>{uni.nombre}</h3>
+                      <p className="uni-resumen">{uni.resumen}</p>
+                      <div className="uni-program-list">
+                        {uni.programas.map((programa) => (
+                          <span key={programa} className="uni-program-chip">{programa}</span>
+                        ))}
+                      </div>
+                      <p className="uni-ubicacion">{uni.ubicacion}</p>
+                      <a
+                        className="uni-link-btn"
+                        href={uni.enlace}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Ver mas informacion
+                      </a>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </section>
           </div>
         );
-      
+
       default:
         return (
           <div className="inicio-container">
             <div className="hero-section">
-              <img 
-                src="https://images.unsplash.com/photo-1523050854058-8df90110c9f1?w=1200" 
-                alt="Hero" 
-                className="hero-image" 
+              <img
+                src={heroBanner}
+                alt="Imagen principal del dashboard"
+                className="hero-image"
               />
-              <div className="hero-text">
-                <h1>Descubre tu futuro profesional</h1>
-                <p>Encuentra la carrera ideal para ti mediante nuestra prueba vocacional</p>
-              </div>
             </div>
+            <section className="intro-section">
+              <div className="intro-badge">Tu siguiente decision importa</div>
+              <h2>Elegir una carrera no tiene que hacerse a ciegas</h2>
+              <p>
+                La prueba vocacional profesional te ayuda a descubrir que areas conectan mejor
+                con tu personalidad, tus habilidades y la forma en que imaginas tu futuro.
+              </p>
+              <p>
+                En lugar de elegir por presion, dudas o impulso, puedes tomar una decision mas
+                clara, mas segura y mucho mas alineada contigo.
+              </p>
+              <div className="intro-highlight">
+                Conocerte mejor hoy puede acercarte a una carrera que realmente disfrutes manana.
+              </div>
+            </section>
             <div className="menu-opciones">
               <div className="menu-card" onClick={() => setVistaActual('prueba')}>
-                <div className="menu-icon">📝</div>
+                <div className="menu-card-glow" />
+                <div className="menu-icon" aria-hidden="true">
+                  <span>Explora</span>
+                  <img src={iconEncuesta} alt="" className="menu-icon-badge" />
+                </div>
                 <h3>Hacer la Prueba</h3>
-                <p>Descubre tu area vocacional ideal</p>
+                <p>Descubre tu area vocacional ideal con una guia clara y personalizada.</p>
+                <span className="menu-link">Comenzar ahora</span>
               </div>
               <div className="menu-card" onClick={() => setVistaActual('resultados')}>
-                <div className="menu-icon">📊</div>
+                <div className="menu-card-glow" />
+                <div className="menu-icon" aria-hidden="true">
+                  <span>Analiza</span>
+                  <img src={iconAnalisis} alt="" className="menu-icon-badge" />
+                </div>
                 <h3>Ver Resultados</h3>
-                <p>Consulta tus resultados anteriores</p>
+                <p>Consulta tus avances y entiende mejor lo que tus respuestas revelan.</p>
+                <span className="menu-link">Ver mi perfil</span>
               </div>
               <div className="menu-card" onClick={() => setVistaActual('universidades')}>
-                <div className="menu-icon">🎓</div>
+                <div className="menu-card-glow" />
+                <div className="menu-icon" aria-hidden="true">
+                  <span>Conecta</span>
+                  <img src={iconEducacion} alt="" className="menu-icon-badge" />
+                </div>
                 <h3>Universidades</h3>
-                <p>Explora las universidades disponibles</p>
+                <p>Explora opciones academicas para acercarte a la carrera que imaginas.</p>
+                <span className="menu-link">Descubrir opciones</span>
               </div>
             </div>
           </div>

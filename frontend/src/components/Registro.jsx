@@ -6,7 +6,7 @@ import logoOrientarso from '../assets/logo.orientarso-removebg-preview.png';
 
 const API_BASE = 'http://localhost:8000';
 
-function Registro() {
+function Registro({ showHeader = true }) {
   const [formData, setFormData] = useState({
     tipo_documento: '',
     numero_documento: '',
@@ -71,11 +71,13 @@ function Registro() {
 
   return (
     <>
-      <header className="auth-header">
-        <Link to="/" className="auth-logo-link" aria-label="Ir al inicio">
-          <img src={logoOrientarso} alt="Orientarso" className="auth-logo" />
-        </Link>
-      </header>
+      {showHeader && (
+        <header className="auth-header">
+          <Link to="/" className="auth-logo-link" aria-label="Ir al inicio">
+            <img src={logoOrientarso} alt="Orientarso" className="auth-logo" />
+          </Link>
+        </header>
+      )}
       <div className="auth-container">
         <div className="auth-card">
         <h3 className="auth-title">Registro de Usuario</h3>

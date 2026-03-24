@@ -6,7 +6,7 @@ import logoOrientarso from '../assets/logo.orientarso-removebg-preview.png';
 
 const API_BASE = 'http://localhost:8000';
 
-function Login() {
+function Login({ showHeader = true }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [messages, setMessages] = useState([]);
@@ -43,11 +43,13 @@ function Login() {
 
   return (
     <>
-      <header className="auth-header">
-        <Link to="/" className="auth-logo-link" aria-label="Ir al inicio">
-          <img src={logoOrientarso} alt="Orientarso" className="auth-logo" />
-        </Link>
-      </header>
+      {showHeader && (
+        <header className="auth-header">
+          <Link to="/" className="auth-logo-link" aria-label="Ir al inicio">
+            <img src={logoOrientarso} alt="Orientarso" className="auth-logo" />
+          </Link>
+        </header>
+      )}
       <div className="auth-container">
         <div className="auth-card">
           <h3 className="auth-title">Iniciar sesión</h3>

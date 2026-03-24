@@ -10,13 +10,25 @@ import Login from './Login';
 import Registro from './Registro';
 
 function Inicio() {
-  const [modalImage, setModalImage] = useState(null);
+  const [activeCard, setActiveCard] = useState(null);
+  const [isClosing, setIsClosing] = useState(false);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [isSignupOpen, setIsSignupOpen] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
-  const openModal = (image) => setModalImage(image);
-  const closeModal = () => setModalImage(null);
+  const paletteColors = ['#264653', '#2A9D8F', '#E9C46A', '#F4A261', '#E76F51'];
+
+  const openModal = (card) => {
+    setIsClosing(false);
+    setActiveCard(card);
+  };
+  const closeModal = () => {
+    setIsClosing(true);
+    window.setTimeout(() => {
+      setActiveCard(null);
+      setIsClosing(false);
+    }, 240);
+  };
   const openLogin = () => setIsLoginOpen(true);
   const closeLogin = () => setIsLoginOpen(false);
   const openSignup = () => setIsSignupOpen(true);
@@ -74,44 +86,47 @@ function Inicio() {
       <section className="benefits">
         <h2>¿Por qué usar Orientarso?</h2>
         <div className="cards">
-          <div
-            className="card"
-            role="button"
-            tabIndex={0}
-            onClick={() => openModal(imgAutoconocimiento)}
-            onKeyDown={(e) => { if (e.key === 'Enter') openModal(imgAutoconocimiento); }}
-          >
-            <img
-              className="card-image"
-              src={imgAutoconocimiento}
-              alt="Autoconocimiento"
-            />
-          </div>
-          <div
-            className="card"
-            role="button"
-            tabIndex={0}
-            onClick={() => openModal(imgResultados)}
-            onKeyDown={(e) => { if (e.key === 'Enter') openModal(imgResultados); }}
-          >
-            <img
-              className="card-image"
-              src={imgResultados}
-              alt="Resultados Inteligentes"
-            />
-          </div>
-          <div
-            className="card"
-            role="button"
-            tabIndex={0}
-            onClick={() => openModal(imgExplora)}
-            onKeyDown={(e) => { if (e.key === 'Enter') openModal(imgExplora); }}
-          >
-            <img
-              className="card-image"
-              src={imgExplora}
-              alt="Explora Carreras"
-            />
+          <div className="palette-card single-vision-card">
+            <div className="palette">
+              <div className="color" style={{ background: paletteColors[0] }}>
+                <span className="palette-label">Mision</span>
+              </div>
+              <div className="color" style={{ background: paletteColors[1] }}>
+                <span className="palette-label">Vision</span>
+              </div>
+              <div
+                className="color color-image"
+                style={{ backgroundImage: `url("${imgAutoconocimiento}")` }}
+                role="button"
+                tabIndex={0}
+                aria-label="Ver Autoconocimiento"
+                onClick={() => openModal({ type: 'image', title: 'Autoconocimiento', image: imgAutoconocimiento })}
+                onKeyDown={(e) => { if (e.key === 'Enter') openModal({ type: 'image', title: 'Autoconocimiento', image: imgAutoconocimiento }); }}
+              />
+              <div
+                className="color color-image"
+                style={{ backgroundImage: `url("${imgResultados}")` }}
+                role="button"
+                tabIndex={0}
+                aria-label="Ver Resultados Inteligentes"
+                onClick={() => openModal({ type: 'image', title: 'Resultados Inteligentes', image: imgResultados })}
+                onKeyDown={(e) => { if (e.key === 'Enter') openModal({ type: 'image', title: 'Resultados Inteligentes', image: imgResultados }); }}
+              />
+              <div
+                className="color color-image"
+                style={{ backgroundImage: `url("${imgExplora}")` }}
+                role="button"
+                tabIndex={0}
+                aria-label="Ver Explora Carreras"
+                onClick={() => openModal({ type: 'image', title: 'Explora Carreras', image: imgExplora })}
+                onKeyDown={(e) => { if (e.key === 'Enter') openModal({ type: 'image', title: 'Explora Carreras', image: imgExplora }); }}
+              />
+            </div>
+            <div className="palette-stats">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+                <path d="M4 7.5c-.83 0-1.5.67-1.5 1.5s.67 1.5 1.5 1.5S5.5 9.83 5.5 9 4.83 7.5 4 7.5zm10 0c-.83 0-1.5.67-1.5 1.5s.67 1.5 1.5 1.5 1.5-.67 1.5-1.5-.67-1.5-1.5-1.5zm-5 0c-.83 0-1.5.67-1.5 1.5s.67 1.5 1.5 1.5 1.5-.67 1.5-1.5S9.83 7.5 9 7.5z"></path>
+              </svg>
+            </div>
           </div>
         </div>
       </section>
@@ -125,11 +140,29 @@ function Inicio() {
         </div>
       </section>
 
-      {modalImage && (
-        <div className="modal-overlay" onClick={closeModal}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <button className="modal-close" onClick={closeModal} aria-label="Cerrar">x</button>
-            <img className="modal-image" src={modalImage} alt="Imagen ampliada" />
+      {activeCard && (
+        <div
+          className={`zoom-overlay ${isClosing ? 'closing' : 'open'}`}
+          onClick={closeModal}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className={`zoom-content ${isClosing ? 'closing' : 'open'}`} onClick={(e) => e.stopPropagation()}>
+            <button className="zoom-close" onClick={closeModal} aria-label="Cerrar">x</button>
+            {activeCard.type === 'image' ? (
+              <img className="zoom-image" src={activeCard.image} alt={activeCard.title} />
+            ) : (
+              <div className="zoom-palette">
+                <div className="zoom-title">{activeCard.title}</div>
+                <div className="palette">
+                  {paletteColors.map((color) => (
+                    <div key={color} className="color" style={{ background: color }}>
+                      <span>{color.replace('#', '')}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -138,7 +171,7 @@ function Inicio() {
         <div className="modal-overlay login-modal" onClick={closeLogin}>
           <div className="modal-content login-modal-content" onClick={(e) => e.stopPropagation()}>
             <button className="modal-close" onClick={closeLogin} aria-label="Cerrar">x</button>
-            <Login />
+            <Login showHeader={false} />
           </div>
         </div>
       )}
@@ -147,7 +180,7 @@ function Inicio() {
         <div className="modal-overlay signup-modal" onClick={closeSignup}>
           <div className="modal-content signup-modal-content" onClick={(e) => e.stopPropagation()}>
             <button className="modal-close" onClick={closeSignup} aria-label="Cerrar">x</button>
-            <Registro />
+            <Registro showHeader={false} />
           </div>
         </div>
       )}

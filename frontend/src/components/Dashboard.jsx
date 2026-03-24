@@ -1,7 +1,12 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import './Dashboard.css';
+import logoOrientarso from '../assets/logo.orientarso-removebg-preview.png';
+import iconHome from '../assets/house-door-fill.svg';
+import iconAccount from '../assets/person-circle.svg';
+import iconMoon from '../assets/moon-fill.svg';
+import iconSun from '../assets/brightness-high-fill.svg';
 
 const universidadesData = [
   {
@@ -30,6 +35,13 @@ const universidadesData = [
 function Dashboard() {
   const [username, setUsername] = useState('Invitado');
   const [vistaActual, setVistaActual] = useState('inicio');
+  const [menuAbierto, setMenuAbierto] = useState(false);
+  const [fotoModalAbierto, setFotoModalAbierto] = useState(false);
+  const [fotoPerfil, setFotoPerfil] = useState(
+    'https://images.unsplash.com/photo-1544723795-3fb6469f5b39?w=800'
+  );
+  const [modoOscuro, setModoOscuro] = useState(false);
+  const fileInputRef = useRef(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -42,6 +54,22 @@ function Dashboard() {
     if (user) {
       setUsername(user);
     }
+
+    const cargarNombre = async () => {
+      try {
+        const response = await axios.get('http://localhost:8000/api/user/', {
+          withCredentials: true
+        });
+        const nombre = response?.data?.first_name;
+        if (nombre) {
+          setUsername(nombre);
+        }
+      } catch (error) {
+        // Si falla la consulta, se mantiene el valor local
+      }
+    };
+
+    cargarNombre();
   }, [navigate]);
 
   const handleLogout = async () => {
@@ -67,12 +95,12 @@ function Dashboard() {
             <div className="config-card">
               <h3>Perfil</h3>
               <div className="form-group">
-                <label>Nombre de usuario:</label>
+                <label>Nombre:</label>
                 <input type="text" value={username} readOnly className="form-control" />
               </div>
               <div className="form-group">
-                <label>Correo electronico:</label>
-                <input type="email" placeholder="correo@ejemplo.com" className="form-control" />
+                <label>Primer nombre:</label>
+                <input type="text" value={username} readOnly className="form-control" />
               </div>
               <button className="btn btn-primary">Guardar cambios</button>
             </div>
@@ -213,29 +241,126 @@ function Dashboard() {
   };
 
   return (
-    <div className="dashboard">
-      <nav className="sidebar">
-        <div className="logo">
-          <h2>Orientacion</h2>
+    <div className={`dashboard ${modoOscuro ? 'dark' : 'light'}`}>
+      <header className="dashboard-header">
+        <div className="header-left">
+          <button
+            className="dashboard-sidebar-toggle"
+            onClick={() => setMenuAbierto((prev) => !prev)}
+            aria-expanded={menuAbierto}
+            aria-controls="dashboard-sidebar"
+            aria-label="Abrir menu lateral"
+          >
+            <span className="hamburger-line" />
+            <span className="hamburger-line" />
+            <span className="hamburger-line" />
+          </button>
+          <button
+            className="header-logo"
+            onClick={() => {
+              setVistaActual('inicio');
+              setMenuAbierto(false);
+            }}
+            aria-label="Ir al inicio del dashboard"
+          >
+            <img src={logoOrientarso} alt="Orientarso" />
+          </button>
         </div>
-        <ul className="nav-menu">
-          <li 
-            className={vistaActual === 'inicio' ? 'active' : ''}
-            onClick={() => setVistaActual('inicio')}
+        <div className="header-actions" />
+      </header>
+      <div
+        className={`dashboard-overlay ${menuAbierto ? 'open' : ''}`}
+        onClick={() => setMenuAbierto(false)}
+        aria-hidden={!menuAbierto}
+      />
+      <aside
+        id="dashboard-sidebar"
+        className={`dashboard-sidebar ${menuAbierto ? 'open' : ''}`}
+        aria-hidden={!menuAbierto}
+      >
+        <div className="sidebar-user">
+          <button
+            className="user-avatar"
+            onClick={() => setFotoModalAbierto(true)}
+            aria-label="Ver foto de perfil"
           >
-            Home
-          </li>
-          <li 
-            className={vistaActual === 'configuracion' ? 'active' : ''}
-            onClick={() => setVistaActual('configuracion')}
-          >
-            Configuracion
-          </li>
-        </ul>
-        <button className="btn-logout" onClick={handleLogout}>
+            <img src={fotoPerfil} alt="Foto de perfil" />
+          </button>
+          <div className="user-name">{username}</div>
+        </div>
+        <div className="sidebar-divider" />
+        <div className="sidebar-title">Menu</div>
+        <button
+          className={`sidebar-item ${vistaActual === 'inicio' ? 'active' : ''}`}
+          onClick={() => {
+            setVistaActual('inicio');
+            setMenuAbierto(false);
+          }}
+        >
+          <img src={iconHome} alt="" className="menu-icon-img" />
+          Home
+        </button>
+        <button
+          className={`sidebar-item ${vistaActual === 'configuracion' ? 'active' : ''}`}
+          onClick={() => {
+            setVistaActual('configuracion');
+            setMenuAbierto(false);
+          }}
+        >
+          <img src={iconAccount} alt="" className="menu-icon-img" />
+          Mi cuenta
+        </button>
+        <div className="sidebar-divider" />
+        <button
+          className="sidebar-item"
+          onClick={() => setModoOscuro((prev) => !prev)}
+        >
+          <img
+            src={modoOscuro ? iconSun : iconMoon}
+            alt=""
+            className="menu-icon-img"
+          />
+          {modoOscuro ? 'Modo claro' : 'Modo oscuro'}
+        </button>
+        <div className="sidebar-divider" />
+        <button className="sidebar-item logout" onClick={handleLogout}>
           Cerrar sesion
         </button>
-      </nav>
+      </aside>
+      {fotoModalAbierto && (
+        <div
+          className="photo-modal"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setFotoModalAbierto(false)}
+        >
+          <div className="photo-modal-content" onClick={(e) => e.stopPropagation()}>
+            <img
+              src={fotoPerfil}
+              alt="Foto de perfil completa"
+              className="photo-modal-image"
+            />
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="photo-file-input"
+              onChange={(e) => {
+                const file = e.target.files && e.target.files[0];
+                if (!file) return;
+                const nextUrl = URL.createObjectURL(file);
+                setFotoPerfil(nextUrl);
+              }}
+            />
+            <button
+              className="btn photo-edit-btn"
+              onClick={() => fileInputRef.current && fileInputRef.current.click()}
+            >
+              Editar foto
+            </button>
+          </div>
+        </div>
+      )}
       <main className="main-content">
         {renderContent()}
       </main>

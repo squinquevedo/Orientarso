@@ -6,6 +6,7 @@ import gridIcon from '../assets/grid-3x2-gap-fill.svg';
 import imgAutoconocimiento from '../assets/Gemini_Generated_Image_o3b6wo3b6wo3b6wo.png';
 import imgResultados from '../assets/unnamed (1).jpg';
 import imgExplora from '../assets/unnamed.jpg';
+import misionVideo from '../assets/mision orientarso.mp4';
 import Login from './Login';
 import Registro from './Registro';
 
@@ -88,7 +89,17 @@ function Inicio() {
         <div className="cards">
           <div className="palette-card single-vision-card">
             <div className="palette">
-              <div className="color" style={{ background: paletteColors[0] }}>
+              <div
+                className="color color-video"
+                role="button"
+                tabIndex={0}
+                aria-label="Ver Mision"
+                onClick={() => openModal({ type: 'video', title: 'Mision', video: misionVideo })}
+                onKeyDown={(e) => { if (e.key === 'Enter') openModal({ type: 'video', title: 'Mision', video: misionVideo }); }}
+              >
+                <video className="palette-video" autoPlay loop muted playsInline>
+                  <source src={misionVideo} type="video/mp4" />
+                </video>
                 <span className="palette-label">Mision</span>
               </div>
               <div className="color" style={{ background: paletteColors[1] }}>
@@ -151,6 +162,8 @@ function Inicio() {
             <button className="zoom-close" onClick={closeModal} aria-label="Cerrar">x</button>
             {activeCard.type === 'image' ? (
               <img className="zoom-image" src={activeCard.image} alt={activeCard.title} />
+            ) : activeCard.type === 'video' ? (
+              <video className="zoom-video" src={activeCard.video} controls autoPlay />
             ) : (
               <div className="zoom-palette">
                 <div className="zoom-title">{activeCard.title}</div>

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import './Dashboard.css';
@@ -7,7 +7,7 @@ import iconHome from '../assets/house-door-fill.svg';
 import iconAccount from '../assets/person-circle.svg';
 import iconMoon from '../assets/moon-fill.svg';
 import iconSun from '../assets/brightness-high-fill.svg';
-import heroBanner from '../assets/areasimg.jpg';
+import heroVideo from '../assets/Video_Orientación_Vocacional_Sin_Texto.mp4';
 import iconEncuesta from '../assets/encuesta-128x128.png';
 import iconAnalisis from '../assets/análisis-128x128.png';
 import iconEducacion from '../assets/educación-128x128.png';
@@ -17,6 +17,22 @@ import bosqueImg from '../assets/Universidad El Bosque.jpeg';
 import tadeoImg from '../assets/Universidad Jorge Tadeo Lozano.jpg';
 import nacionalImg from '../assets/Universidad Nacional de Colombia.jpg';
 import pilotoImg from '../assets/Universidad Piloto de Colombia.jpg';
+
+const API_BASE = 'http://localhost:8000';
+const OPCIONES = [
+  { label: 'De acuerdo', value: 25 },
+  { label: 'A veces', value: 15 },
+  { label: 'Muy poco', value: 5 },
+  { label: 'Desacuerdo', value: 0 },
+];
+const MAX_OPTION = Math.max(...OPCIONES.map((o) => o.value));
+
+function getCookie(name) {
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) return parts.pop().split(';').shift();
+  return '';
+}
 
 const universidadesData = [
   {
@@ -80,6 +96,13 @@ function Dashboard() {
     'https://images.unsplash.com/photo-1544723795-3fb6469f5b39?w=800'
   );
   const [modoOscuro, setModoOscuro] = useState(false);
+  const [preguntas, setPreguntas] = useState([]);
+  const [respuestas, setRespuestas] = useState({});
+  const [cargandoPreguntas, setCargandoPreguntas] = useState(false);
+  const [errorPreguntas, setErrorPreguntas] = useState('');
+  const [areasMap, setAreasMap] = useState({});
+  const [guardandoTest, setGuardandoTest] = useState(false);
+  const [errorTest, setErrorTest] = useState('');
   const fileInputRef = useRef(null);
   const navigate = useNavigate();
 
@@ -116,6 +139,46 @@ function Dashboard() {
     cargarNombre();
   }, [navigate]);
 
+  useEffect(() => {
+    const isAuthenticated = localStorage.getItem('isAuthenticated') === 'true';
+    if (!isAuthenticated || vistaActual !== 'prueba') return;
+
+    const cargarPreguntas = async () => {
+      setCargandoPreguntas(true);
+      setErrorPreguntas('');
+      try {
+        const response = await axios.get(`${API_BASE}/api/preguntas/`, {
+          withCredentials: true,
+        });
+        setPreguntas(Array.isArray(response.data) ? response.data : []);
+        setRespuestas({});
+      } catch (error) {
+        setErrorPreguntas(error.response?.data?.error || 'Error al cargar preguntas');
+        setPreguntas([]);
+      } finally {
+        setCargandoPreguntas(false);
+      }
+    };
+
+    const cargarAreas = async () => {
+      try {
+        const response = await axios.get(`${API_BASE}/api/areas/`, {
+          withCredentials: true,
+        });
+        const map = {};
+        (Array.isArray(response.data) ? response.data : []).forEach((area) => {
+          map[String(area.id)] = area.nom_area;
+        });
+        setAreasMap(map);
+      } catch (error) {
+        setAreasMap({});
+      }
+    };
+
+    cargarPreguntas();
+    cargarAreas();
+  }, [vistaActual]);
+
   const handleLogout = async () => {
     try {
       await axios.post('http://localhost:8000/api/logout/', {}, { withCredentials: true });
@@ -128,6 +191,69 @@ function Dashboard() {
       localStorage.removeItem('isAuthenticated');
       sessionStorage.clear();
       navigate('/', { replace: true });
+    }
+  };
+
+  const maxPorArea = useMemo(() => {
+    const mapa = {};
+    preguntas.forEach((pregunta) => {
+      const areaKey = String(pregunta.id_area ?? 'sin_area');
+      const maxPregunta = Number(pregunta.valor) || MAX_OPTION;
+      mapa[areaKey] = (mapa[areaKey] || 0) + maxPregunta;
+    });
+    return mapa;
+  }, [preguntas]);
+
+  const puntajePorArea = useMemo(() => {
+    const mapa = {};
+    preguntas.forEach((pregunta) => {
+      const areaKey = String(pregunta.id_area ?? 'sin_area');
+      const maxPregunta = Number(pregunta.valor) || MAX_OPTION;
+      const respuesta = Number(respuestas[pregunta.id]) || 0;
+      const valorNormalizado = (respuesta / MAX_OPTION) * maxPregunta;
+      mapa[areaKey] = (mapa[areaKey] || 0) + valorNormalizado;
+    });
+    return mapa;
+  }, [preguntas, respuestas]);
+
+  const resultados = useMemo(() => {
+    return Object.keys(maxPorArea)
+      .map((areaKey) => {
+        const max = maxPorArea[areaKey] || 0;
+        const score = puntajePorArea[areaKey] || 0;
+        const pct = max ? Math.round((score / max) * 100) : 0;
+        return { areaKey, score, max, pct };
+      })
+      .sort((a, b) => b.pct - a.pct);
+  }, [maxPorArea, puntajePorArea]);
+
+  const enviarTest = async () => {
+    setGuardandoTest(true);
+    setErrorTest('');
+    try {
+      await axios.get(`${API_BASE}/api/csrf/`, { withCredentials: true });
+      const csrfToken = getCookie('csrftoken');
+      const payload = {
+        respuestas: Object.keys(respuestas).map((id_pregunta) => ({
+          id_pregunta: Number(id_pregunta),
+          respuesta: Number(respuestas[id_pregunta]) || 0,
+        })),
+      };
+      await axios.post(
+        `${API_BASE}/api/test/`,
+        payload,
+        {
+          withCredentials: true,
+          headers: {
+            'X-CSRFToken': csrfToken,
+          },
+        }
+      );
+      setVistaActual('resultados');
+    } catch (error) {
+      setErrorTest(error.response?.data?.error || 'Error al guardar el intento');
+    } finally {
+      setGuardandoTest(false);
     }
   };
 
@@ -173,27 +299,49 @@ function Dashboard() {
           <div className="prueba-container">
             <h2>Prueba Vocacional</h2>
             <p>Responde las siguientes preguntas para descubrir tu carrera ideal.</p>
-            <div className="prueba-card">
-              <h3>Pregunta 1</h3>
-              <p>Que actividad te gusta mas?</p>
-              <div className="opciones">
-                <button className="btn-opcion">Resolver problemas matematicos</button>
-                <button className="btn-opcion">Ayudar a otras personas</button>
-                <button className="btn-opcion">Crear contenido artistico</button>
-                <button className="btn-opcion">Trabajar con tecnologia</button>
+            {cargandoPreguntas && (
+              <div className="prueba-loading">Cargando preguntas...</div>
+            )}
+            {errorPreguntas && (
+              <div className="prueba-error">{errorPreguntas}</div>
+            )}
+            {!cargandoPreguntas && !errorPreguntas && preguntas.length === 0 && (
+              <div className="prueba-empty">No hay preguntas disponibles.</div>
+            )}
+            {preguntas.map((pregunta, index) => (
+              <div key={pregunta.id} className="prueba-card">
+                <h3>Pregunta {index + 1}</h3>
+                <p>{pregunta.pregunta}</p>
+                <div className="opciones">
+                  {OPCIONES.map((opcion) => {
+                    const active = respuestas[pregunta.id] === opcion.value;
+                    return (
+                      <button
+                        key={opcion.value}
+                        type="button"
+                        className={`btn-opcion ${active ? 'active' : ''}`}
+                        onClick={() =>
+                          setRespuestas((prev) => ({
+                            ...prev,
+                            [pregunta.id]: opcion.value,
+                          }))
+                        }
+                      >
+                        {opcion.label}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-            <div className="prueba-card">
-              <h3>Pregunta 2</h3>
-              <p>En que entorno te gustaria trabajar?</p>
-              <div className="opciones">
-                <button className="btn-opcion">Oficina</button>
-                <button className="btn-opcion">Hospital</button>
-                <button className="btn-opcion">Laboratorio</button>
-                <button className="btn-opcion">Al aire libre</button>
-              </div>
-            </div>
-            <button className="btn btn-primary">Enviar respuestas</button>
+            ))}
+            {errorTest && <div className="prueba-error">{errorTest}</div>}
+            <button
+              className="btn btn-primary"
+              onClick={enviarTest}
+              disabled={Object.keys(respuestas).length === 0 || guardandoTest}
+            >
+              {guardandoTest ? 'Guardando...' : 'Ver resultados'}
+            </button>
           </div>
         );
 
@@ -203,15 +351,19 @@ function Dashboard() {
             <h2>Tus Resultados</h2>
             <div className="resultado-card">
               <h3>Areas de mayor afinidad</h3>
-              <div className="barra-progreso">
-                <div className="barra-fill" style={{ width: '85%' }}>Tecnologia - 85%</div>
-              </div>
-              <div className="barra-progreso">
-                <div className="barra-fill" style={{ width: '70%' }}>Ciencias - 70%</div>
-              </div>
-              <div className="barra-progreso">
-                <div className="barra-fill" style={{ width: '55%' }}>Artes - 55%</div>
-              </div>
+              {resultados.length === 0 && (
+                <div className="resultado-empty">Aun no hay resultados para mostrar.</div>
+              )}
+              {resultados.map((resultado) => (
+                <div key={resultado.areaKey} className="barra-progreso">
+                  <div
+                    className="barra-fill"
+                    style={{ width: `${resultado.pct}%` }}
+                  >
+                    {areasMap[resultado.areaKey] || `Area ${resultado.areaKey}`} - {resultado.pct}% ({Math.round(resultado.score)}/{Math.round(resultado.max)})
+                  </div>
+                </div>
+              ))}
             </div>
             <div className="recomendaciones">
               <h3>Carreras recomendadas</h3>
@@ -293,11 +445,15 @@ function Dashboard() {
         return (
           <div className="inicio-container">
             <div className="hero-section">
-              <img
-                src={heroBanner}
-                alt="Imagen principal del dashboard"
-                className="hero-image"
+              <video
+                className="hero-video"
+                src={heroVideo}
+                autoPlay
+                muted
+                loop
+                playsInline
               />
+              <div className="hero-overlay" aria-hidden="true" />
             </div>
             <section className="intro-section">
               <div className="intro-badge">Tu siguiente decision importa</div>

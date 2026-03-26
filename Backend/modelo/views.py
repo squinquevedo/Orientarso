@@ -1,10 +1,13 @@
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.models import User
-from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
+from django.middleware.csrf import get_token
 from rest_framework.decorators import api_view, permission_classes, authentication_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
+from django.db import connection, transaction
+from django.utils import timezone
 import json
 
 # ==================== APIs REST (React) ====================
@@ -126,3 +129,129 @@ def api_user(request):
         'first_name': user.first_name,
         'is_authenticated': user.is_authenticated,
     }, status=status.HTTP_200_OK)
+
+
+@ensure_csrf_cookie
+@api_view(['GET'])
+@permission_classes([AllowAny])
+@authentication_classes([])
+def api_csrf(request):
+    'Emitir cookie CSRF para el frontend'
+    return Response({
+        'csrfToken': get_token(request)
+    }, status=status.HTTP_200_OK)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def api_preguntas(request):
+    'Listado de preguntas para la prueba vocacional'
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                'SELECT id, pregunta, valor, id_area FROM tb_preguntas ORDER BY id'
+            )
+            rows = cursor.fetchall()
+
+        preguntas = [
+            {
+                'id': row[0],
+                'pregunta': row[1],
+                'valor': row[2],
+                'id_area': row[3],
+            }
+            for row in rows
+        ]
+
+        return Response(preguntas, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({
+            'error': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def api_areas(request):
+    'Listado de areas para la prueba vocacional'
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                'SELECT id, nom_area FROM tb_area ORDER BY id'
+            )
+            rows = cursor.fetchall()
+
+        areas = [
+            {
+                'id': row[0],
+                'nom_area': row[1],
+            }
+            for row in rows
+        ]
+
+        return Response(areas, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({
+            'error': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def api_test(request):
+    'Registrar un intento de prueba y guardar respuestas'
+    try:
+        data = request.data or {}
+        respuestas = data.get('respuestas') or []
+
+        if not isinstance(respuestas, list):
+            return Response({
+                'error': 'Formato de respuestas invalido'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        with transaction.atomic():
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    'SELECT COUNT(*) FROM tb_test WHERE id_auth_user = %s',
+                    [request.user.id]
+                )
+                count = cursor.fetchone()[0] or 0
+                intento = count + 1
+
+                cursor.execute('SELECT MAX(id) FROM tb_test')
+                max_id = cursor.fetchone()[0] or 0
+                test_id = max_id + 1
+
+                cursor.execute(
+                    'INSERT INTO tb_test (id, id_auth_user, fecha_registro, intento) VALUES (%s, %s, %s, %s)',
+                    [test_id, request.user.id, timezone.now(), intento]
+                )
+
+                valores = []
+                for item in respuestas:
+                    try:
+                        id_pregunta = int(item.get('id_pregunta'))
+                        respuesta = float(item.get('respuesta'))
+                    except (TypeError, ValueError):
+                        continue
+                    valores.append((test_id, id_pregunta, respuesta))
+
+                if valores:
+                    cursor.execute('SELECT MAX(id) FROM tb_respuesta')
+                    max_resp_id = cursor.fetchone()[0] or 0
+                    valores_con_id = []
+                    for idx, (id_test_val, id_pregunta_val, respuesta_val) in enumerate(valores, start=1):
+                        valores_con_id.append((max_resp_id + idx, id_test_val, id_pregunta_val, respuesta_val))
+                    cursor.executemany(
+                        'INSERT INTO tb_respuesta (id, id_test, id_pregunta, respuesta) VALUES (%s, %s, %s, %s)',
+                        valores_con_id
+                    )
+
+        return Response({
+            'id_test': test_id,
+            'intento': intento,
+        }, status=status.HTTP_201_CREATED)
+    except Exception as e:
+        return Response({
+            'error': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

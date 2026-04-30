@@ -11,7 +11,6 @@ import heroBanner from '../assets/areasimg.jpg';
 import iconEncuesta from '../assets/encuesta-128x128.png';
 import iconAnalisis from '../assets/análisis-128x128.png';
 import iconEducacion from '../assets/educación-128x128.png';
-import universidadesBanner from '../assets/unnamed.jpg';
 import javerianaImg from '../assets/javeriana.png';
 import bosqueImg from '../assets/Universidad El Bosque.jpeg';
 import tadeoImg from '../assets/Universidad Jorge Tadeo Lozano.jpg';
@@ -229,21 +228,15 @@ function Dashboard() {
           <div className="universidades-container">
             <h2>Universidades</h2>
             <section className="universidades-hero">
-              <div className="universidades-hero-image-wrap">
-                <img
-                  src={universidadesBanner}
-                  alt="Espacio universitario"
-                  className="universidades-hero-image"
-                />
-              </div>
               <div className="universidades-hero-copy">
                 <div className="universidades-hero-badge">Tu futuro comienza aqui</div>
                 <p className="universidades-hero-quote">
-                  La universidad correcta puede transformar tus talentos en oportunidades reales
-                  y acercarte al futuro profesional que siempre has imaginado.
+                  Encuentra universidades que conecten con tus intereses, tus talentos y el
+                  proyecto profesional que quieres construir.
                 </p>
                 <p className="universidades-hero-subtext">
-                  Explora, compara y da el primer paso hacia una meta que de verdad te emocione.
+                  Revisa opciones en Bogota, compara programas y elige con mas claridad el lugar
+                  donde quieres empezar tu camino universitario.
                 </p>
               </div>
             </section>
@@ -352,90 +345,90 @@ function Dashboard() {
   };
 
   return (
-    <div className={`dashboard ${modoOscuro ? 'dark' : 'light'}`}>
-      <header className="dashboard-header">
-        <div className="header-left">
-          <button
-            className="dashboard-sidebar-toggle"
-            onClick={() => setMenuAbierto((prev) => !prev)}
-            aria-expanded={menuAbierto}
-            aria-controls="dashboard-sidebar"
-            aria-label="Abrir menu lateral"
-          >
-            <span className="hamburger-line" />
-            <span className="hamburger-line" />
-            <span className="hamburger-line" />
-          </button>
-          <button
-            className="header-logo"
-            onClick={() => {
-              setVistaActual('inicio');
-              setMenuAbierto(false);
-            }}
-            aria-label="Ir al inicio del dashboard"
-          >
-            <img src={logoOrientarso} alt="Orientarso" />
-          </button>
-        </div>
-        <div className="header-actions" />
-      </header>
-      <div
-        className={`dashboard-overlay ${menuAbierto ? 'open' : ''}`}
-        onClick={() => setMenuAbierto(false)}
-        aria-hidden={!menuAbierto}
-      />
+    <div className={`dashboard ${modoOscuro ? 'dark' : 'light'} ${menuAbierto ? 'sidebar-expanded' : 'sidebar-collapsed'}`}>
       <aside
         id="dashboard-sidebar"
         className={`dashboard-sidebar ${menuAbierto ? 'open' : ''}`}
-        aria-hidden={!menuAbierto}
+        aria-label="Navegacion principal"
       >
-        <div className="sidebar-user">
-          <button
-            className="user-avatar"
-            onClick={() => setFotoModalAbierto(true)}
-            aria-label="Ver foto de perfil"
-          >
+        <button
+          className="sidebar-expand-toggle"
+          onClick={() => setMenuAbierto((prev) => !prev)}
+          aria-expanded={menuAbierto}
+          aria-controls="dashboard-sidebar"
+          aria-label={menuAbierto ? 'Contraer menu lateral' : 'Expandir menu lateral'}
+        >
+          <span>{'>'}</span>
+        </button>
+        <button
+          className="sidebar-brand"
+          onClick={() => setVistaActual('inicio')}
+          aria-label="Ir al inicio del dashboard"
+        >
+          <img src={logoOrientarso} alt="Orientarso" />
+          <span className="sidebar-label">Orientarso</span>
+        </button>
+        <button
+          className="sidebar-user"
+          onClick={() => setFotoModalAbierto(true)}
+          aria-label="Ver foto de perfil"
+        >
+          <span className="user-avatar">
             <img src={fotoPerfil} alt="Foto de perfil" />
+          </span>
+          <span className="user-name sidebar-label">{username}</span>
+        </button>
+        <nav className="sidebar-nav" aria-label="Opciones del dashboard">
+          <button
+            className={`sidebar-item ${vistaActual === 'inicio' ? 'active' : ''}`}
+            onClick={() => setVistaActual('inicio')}
+          >
+            <img src={iconHome} alt="" className="menu-icon-img" />
+            <span className="sidebar-label">Home</span>
           </button>
-          <div className="user-name">{username}</div>
-        </div>
-        <div className="sidebar-divider" />
-        <div className="sidebar-title">Menu</div>
-        <button
-          className={`sidebar-item ${vistaActual === 'inicio' ? 'active' : ''}`}
-          onClick={() => {
-            setVistaActual('inicio');
-            setMenuAbierto(false);
-          }}
-        >
-          <img src={iconHome} alt="" className="menu-icon-img" />
-          Home
-        </button>
-        <button
-          className={`sidebar-item ${vistaActual === 'configuracion' ? 'active' : ''}`}
-          onClick={() => {
-            setVistaActual('configuracion');
-            setMenuAbierto(false);
-          }}
-        >
-          <img src={iconAccount} alt="" className="menu-icon-img" />
-          Mi cuenta
-        </button>
-        <div className="sidebar-divider" />
-        <button
-          className="sidebar-item"
-          onClick={() => setModoOscuro((prev) => !prev)}
-        >
-          <img
-            src={modoOscuro ? iconSun : iconMoon}
-            alt=""
-            className="menu-icon-img"
-          />
-          {modoOscuro ? 'Modo claro' : 'Modo oscuro'}
-        </button>
-        <div className="sidebar-divider" />
+          <button
+            className={`sidebar-item ${vistaActual === 'configuracion' ? 'active' : ''}`}
+            onClick={() => setVistaActual('configuracion')}
+          >
+            <img src={iconAccount} alt="" className="menu-icon-img" />
+            <span className="sidebar-label">Mi cuenta</span>
+          </button>
+          <button
+            className={`sidebar-item ${vistaActual === 'prueba' ? 'active' : ''}`}
+            onClick={() => setVistaActual('prueba')}
+          >
+            <img src={iconEncuesta} alt="" className="menu-icon-img" />
+            <span className="sidebar-label">Prueba vocacional</span>
+          </button>
+          <button
+            className={`sidebar-item ${vistaActual === 'resultados' ? 'active' : ''}`}
+            onClick={() => setVistaActual('resultados')}
+          >
+            <img src={iconAnalisis} alt="" className="menu-icon-img" />
+            <span className="sidebar-label">Resultados</span>
+          </button>
+          <button
+            className={`sidebar-item ${vistaActual === 'universidades' ? 'active' : ''}`}
+            onClick={() => setVistaActual('universidades')}
+          >
+            <img src={iconEducacion} alt="" className="menu-icon-img" />
+            <span className="sidebar-label">Universidades</span>
+          </button>
+          <button
+            className="sidebar-item"
+            onClick={() => setModoOscuro((prev) => !prev)}
+          >
+            <img
+              src={modoOscuro ? iconSun : iconMoon}
+              alt=""
+              className="menu-icon-img"
+            />
+            <span className="sidebar-label">{modoOscuro ? 'Modo claro' : 'Modo oscuro'}</span>
+          </button>
+        </nav>
         <button className="sidebar-item logout" onClick={handleLogout}>
-          Cerrar sesion
+          <span className="sidebar-symbol" aria-hidden="true">{'<'}</span>
+          <span className="sidebar-label">Cerrar sesion</span>
         </button>
       </aside>
       {fotoModalAbierto && (

@@ -113,6 +113,13 @@ function Dashboard() {
       return;
     }
 
+    const localRole = localStorage.getItem('userRole');
+    const localIsAdmin = localStorage.getItem('isAdmin') === 'true';
+    if (localRole === 'admin' || localIsAdmin) {
+      navigate('/dashboard_admin', { replace: true });
+      return;
+    }
+
     const fullName = localStorage.getItem('fullName');
     const user = localStorage.getItem('username');
     if (fullName) {
@@ -126,6 +133,12 @@ function Dashboard() {
         const response = await axios.get('http://localhost:8000/api/user/', {
           withCredentials: true
         });
+        if (response?.data?.is_admin) {
+          localStorage.setItem('userRole', response.data.rol || 'admin');
+          localStorage.setItem('isAdmin', 'true');
+          navigate('/dashboard_admin', { replace: true });
+          return;
+        }
         const nombre = response?.data?.first_name;
         if (nombre) {
           localStorage.setItem('fullName', nombre);
@@ -189,6 +202,8 @@ function Dashboard() {
       localStorage.removeItem('username');
       localStorage.removeItem('token');
       localStorage.removeItem('isAuthenticated');
+      localStorage.removeItem('userRole');
+      localStorage.removeItem('isAdmin');
       sessionStorage.clear();
       navigate('/', { replace: true });
     }

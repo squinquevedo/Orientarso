@@ -17,6 +17,7 @@ urlpatterns = [
     path('api/admin/summary/', views.api_admin_summary, name='api_admin_summary'),
     path('api/admin/users/<int:user_id>/', views.api_admin_user_detail, name='api_admin_user_detail'),
     path('api/admin/carreras/', views.api_admin_career_create, name='api_admin_career_create'),
+    path('api/admin/carreras/cargar-base/', views.api_admin_career_bulk_upload, name='api_admin_career_bulk_upload'),
     path('api/admin/carreras/<int:career_id>/', views.api_admin_career_detail, name='api_admin_career_detail'),
     path('api/admin/entidades-apoyo/', views.api_admin_entity_create, name='api_admin_entity_create'),
     path('api/admin/entidades-apoyo/<int:entity_id>/', views.api_admin_entity_detail, name='api_admin_entity_detail'),

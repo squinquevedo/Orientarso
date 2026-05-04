@@ -3,8 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import './Auth.css';
 import logoOrientarso from '../assets/logo.orientarso-removebg-preview.png';
-
-const API_BASE = 'http://localhost:8000';
+import { API_BASE } from '../config/api';
 
 function Login({ showHeader = true }) {
   const [username, setUsername] = useState('');

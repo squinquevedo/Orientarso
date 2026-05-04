@@ -7,8 +7,11 @@ import iconHome from '../assets/house-door-fill.svg';
 import iconAccount from '../assets/person-circle.svg';
 import iconMoon from '../assets/moon-fill.svg';
 import iconSun from '../assets/brightness-high-fill.svg';
-
-const API_BASE = 'http://localhost:8000';
+import iconEditar from '../assets/editar.svg';
+import iconDesplegable from '../assets/desplegable.svg';
+import iconActivar from '../assets/activar y desabilitar.svg';
+import iconGuardar from '../assets/guardar.svg';
+import { API_BASE } from '../config/api';
 
 function getCookie(name) {
   const value = `; ${document.cookie}`;
@@ -69,7 +72,7 @@ function createUniversity() {
 function DashboardAdmin() {
   const [username, setUsername] = useState('Administrador');
   const [vistaActual, setVistaActual] = useState('usuarios');
-  const [menuAbierto, setMenuAbierto] = useState(false);
+  const [menuAbierto, setMenuAbierto] = useState(true);
   const [modoOscuro, setModoOscuro] = useState(false);
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
@@ -80,7 +83,14 @@ function DashboardAdmin() {
   const [areas, setAreas] = useState([]);
   const [careersCatalog, setCareersCatalog] = useState([]);
   const [entitiesCatalog, setEntitiesCatalog] = useState([]);
-  const [newCareer, setNewCareer] = useState({ nombre: '', id_area: '' });
+  const [newCareer, setNewCareer] = useState({ nombre: '', id_area: '', activa: true });
+  const [careerSearch, setCareerSearch] = useState('');
+  const [careerAreaFilters, setCareerAreaFilters] = useState([]);
+  const [careerStatusFilters, setCareerStatusFilters] = useState([]);
+  const [careerLimit, setCareerLimit] = useState(10);
+  const [expandedCareerId, setExpandedCareerId] = useState(null);
+  const [editingCareer, setEditingCareer] = useState(null);
+  const [showNewCareerForm, setShowNewCareerForm] = useState(false);
   const [newEntity, setNewEntity] = useState({
     nombre: '',
     tipo: '',
@@ -229,12 +239,15 @@ function DashboardAdmin() {
           withCredentials: true,
           headers: { 'X-CSRFToken': csrfToken },
         });
-        setNewCareer({ nombre: '', id_area: '' });
+        setNewCareer({ nombre: '', id_area: '', activa: true });
+        setShowNewCareerForm(false);
       }
       await loadAdminData();
       showMessage('Carrera guardada');
+      return true;
     } catch (requestError) {
       showMessage(requestError.response?.data?.error || 'No se pudo guardar la carrera', 'error');
+      return false;
     } finally {
       setGuardando(false);
     }
@@ -250,7 +263,7 @@ function DashboardAdmin() {
         headers: { 'X-CSRFToken': csrfToken },
       });
       await loadAdminData();
-      showMessage('Carrera eliminada');
+      showMessage('Carrera desactivada');
     } catch (requestError) {
       showMessage(requestError.response?.data?.error || 'No se pudo eliminar la carrera', 'error');
     } finally {
@@ -352,6 +365,79 @@ function DashboardAdmin() {
 
   const updateCatalogField = (setter, index, field, value) => {
     setter((prev) => prev.map((item, i) => (i === index ? { ...item, [field]: value } : item)));
+  };
+
+  const getAreaName = (idArea) => {
+    const area = areas.find((item) => String(item.id) === String(idArea));
+    return area?.nom_area || 'Sin area';
+  };
+
+  const openCareerEditor = (career) => {
+    setEditingCareer({ ...career });
+  };
+
+  const updateEditingCareer = (field, value) => {
+    setEditingCareer((prev) => (prev ? { ...prev, [field]: value } : prev));
+  };
+
+  const toggleFilterValue = (setter, value) => {
+    setter((prev) => (prev.includes(value) ? prev.filter((item) => item !== value) : [...prev, value]));
+  };
+
+  const submitCareerEditor = async () => {
+    if (!editingCareer) return;
+    const saved = await saveCareer(editingCareer);
+    if (saved) {
+      setEditingCareer(null);
+    }
+  };
+
+  const normalizedText = (value) =>
+    String(value || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase();
+
+  const filteredCareers = careersCatalog.filter((career) => {
+    const keyword = normalizedText(careerSearch);
+    const areaName = getAreaName(career.id_area);
+    const matchesKeyword =
+      !keyword ||
+      normalizedText(career.nombre).includes(keyword) ||
+      normalizedText(areaName).includes(keyword) ||
+      normalizedText(career.activa ? 'activa' : 'inactiva').includes(keyword);
+    const matchesArea =
+      careerAreaFilters.length === 0 || careerAreaFilters.includes(String(career.id_area));
+    const matchesStatus =
+      careerStatusFilters.length === 0 ||
+      (careerStatusFilters.includes('activas') && Boolean(career.activa)) ||
+      (careerStatusFilters.includes('inactivas') && !Boolean(career.activa));
+    return matchesKeyword && matchesArea && matchesStatus;
+  });
+  const visibleCareers = filteredCareers.slice(0, careerLimit);
+
+  const handleBulkCareerUpload = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setGuardando(true);
+    try {
+      const csrfToken = await fetchCsrf();
+      const formData = new FormData();
+      formData.append('archivo', file);
+      const response = await axios.post(`${API_BASE}/api/admin/carreras/cargar-base/`, formData, {
+        withCredentials: true,
+        headers: { 'X-CSRFToken': csrfToken },
+      });
+      await loadAdminData();
+      const { created = 0, updated = 0, skipped = 0 } = response.data || {};
+      showMessage(`Cargue finalizado: ${created} creadas, ${updated} actualizadas, ${skipped} omitidas`);
+    } catch (requestError) {
+      showMessage(requestError.response?.data?.error || 'No se pudo cargar la base de carreras', 'error');
+    } finally {
+      event.target.value = '';
+      setGuardando(false);
+    }
   };
 
   const updateUniversityField = (setter, field, value, index = null) => {
@@ -519,31 +605,270 @@ function DashboardAdmin() {
     </div>
   );
 
-  const renderCatalogSection = () => (
-    <div className="admin-catalogs">
-      <section className="admin-section">
-        <div className="admin-section-header">
-          <h2>Carreras</h2>
-          <p>Administra el catalogo global de carreras y el area a la que pertenecen.</p>
+  const renderCareersSection = () => (
+    <section className="admin-section careers-module">
+      <div className="admin-section-header">
+        <h2>Carreras</h2>
+        <p>Administra el catalogo global de carreras, consulta por palabras clave y filtra por area.</p>
+      </div>
+
+      <div className="careers-toolbar">
+        <div className="careers-search-row">
+          <label className="careers-search-box">
+            <span>Buscar carrera</span>
+            <input
+              className="admin-input"
+              value={careerSearch}
+              onChange={(e) => setCareerSearch(e.target.value)}
+              placeholder="Busca por nombre, area o estado"
+            />
+          </label>
+          <div className="careers-filter-box">
+            <span>Filtar</span>
+            <details className="careers-filter-menu">
+              <summary>
+                {careerAreaFilters.length + careerStatusFilters.length > 0
+                  ? `${careerAreaFilters.length + careerStatusFilters.length} seleccionados`
+                  : 'Todas las carreras'}
+              </summary>
+              <div className="careers-filter-options">
+                <strong>Estado</strong>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={careerStatusFilters.includes('activas')}
+                    onChange={() => toggleFilterValue(setCareerStatusFilters, 'activas')}
+                  />
+                  Carreras activas
+                </label>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={careerStatusFilters.includes('inactivas')}
+                    onChange={() => toggleFilterValue(setCareerStatusFilters, 'inactivas')}
+                  />
+                  Carreras inactivas
+                </label>
+                <strong>Areas</strong>
+                {areas.map((area) => (
+                  <label key={area.id}>
+                    <input
+                      type="checkbox"
+                      checked={careerAreaFilters.includes(String(area.id))}
+                      onChange={() => toggleFilterValue(setCareerAreaFilters, String(area.id))}
+                    />
+                    {area.nom_area}
+                  </label>
+                ))}
+              </div>
+            </details>
+          </div>
         </div>
-        <div className="admin-grid compact">
-          <article className="admin-card">
-            <h3>Nueva carrera</h3>
+
+        <div className="careers-action-row">
+          <button className="btn btn-primary" type="button" onClick={() => setShowNewCareerForm((prev) => !prev)}>
+            Agregar nueva carrera
+          </button>
+          <label className="btn btn-secondary careers-upload-btn">
+            Cargar base
+            <input type="file" accept=".csv,.xlsx" onChange={handleBulkCareerUpload} disabled={guardando} />
+          </label>
+          <label className="careers-limit-control">
+            <span>Mostrar</span>
+            <select
+              className="admin-input"
+              value={careerLimit}
+              onChange={(e) => {
+                setCareerLimit(Number(e.target.value));
+                setExpandedCareerId(null);
+              }}
+            >
+              <option value={10}>10 registros</option>
+              <option value={50}>50 registros</option>
+              <option value={100}>100 registros</option>
+              <option value={250}>250 registros</option>
+              <option value={500}>500 registros</option>
+            </select>
+            <span className="careers-limit-count">
+              {Math.min(careerLimit, filteredCareers.length)} de {filteredCareers.length}
+            </span>
+          </label>
+        </div>
+      </div>
+
+      {showNewCareerForm && (
+        <article className="admin-card career-new-card">
+          <h3>Nueva carrera</h3>
+          <div className="admin-form-grid">
+            <label>
+              Nombre
+              <input
+                className="admin-input"
+                value={newCareer.nombre}
+                onChange={(e) => setNewCareer((prev) => ({ ...prev, nombre: e.target.value }))}
+              />
+            </label>
+            <label>
+              Area
+              <select
+                className="admin-input"
+                value={newCareer.id_area}
+                onChange={(e) => setNewCareer((prev) => ({ ...prev, id_area: e.target.value }))}
+              >
+                <option value="">Selecciona un area</option>
+                {areas.map((area) => (
+                  <option key={area.id} value={area.id}>{area.nom_area}</option>
+                ))}
+              </select>
+            </label>
+            <label className="career-switch-field">
+              <span>Estado de carrera</span>
+              <input
+                className="career-switch-input"
+                type="checkbox"
+                checked={Boolean(newCareer.activa)}
+                onChange={(e) => setNewCareer((prev) => ({ ...prev, activa: e.target.checked }))}
+              />
+              <span className="career-switch" aria-hidden="true">
+                <span className="career-switch-thumb">
+                  <img src={iconActivar} alt="" />
+                </span>
+              </span>
+              <strong>{newCareer.activa ? 'Activa' : 'Inactiva'}</strong>
+            </label>
+          </div>
+          <div className="admin-card-actions">
+            <button className="btn btn-primary" disabled={guardando} onClick={() => saveCareer(newCareer)}>
+              Guardar carrera
+            </button>
+          </div>
+        </article>
+      )}
+
+      <div className="careers-table-card">
+        <table className="careers-table">
+          <thead>
+            <tr>
+              <th>Carrera</th>
+              <th>Area</th>
+              <th>Estado</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {visibleCareers.map((career) => {
+              const isExpanded = expandedCareerId === career.id;
+              return (
+                <React.Fragment key={career.id}>
+                  <tr>
+                    <td className="career-name-cell">{career.nombre}</td>
+                    <td>{getAreaName(career.id_area)}</td>
+                    <td>
+                      <span className={`admin-badge ${career.activa ? 'active' : ''}`}>
+                        {career.activa ? 'Activa' : 'Inactiva'}
+                      </span>
+                    </td>
+                    <td>
+                      <div className="career-row-actions">
+                        <button
+                          className={`career-icon-btn career-dropdown-btn ${isExpanded ? 'open' : ''}`}
+                          type="button"
+                          onClick={() => setExpandedCareerId(isExpanded ? null : career.id)}
+                          aria-expanded={isExpanded}
+                          aria-label={`${isExpanded ? 'Cerrar' : 'Abrir'} detalle de ${career.nombre}`}
+                          title="Ver detalle"
+                        >
+                          <img src={iconDesplegable} alt="" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                  {isExpanded && (
+                    <tr className="career-detail-row">
+                      <td colSpan="4">
+                        <div className="career-detail-panel">
+                          <div className="career-detail-header">
+                            <div className="career-detail-summary">
+                              <strong>Informacion completa</strong>
+                              <span>ID: {career.id}</span>
+                              <span>Area: {getAreaName(career.id_area)}</span>
+                              <span>Estado: {career.activa ? 'Activa' : 'Inactiva'}</span>
+                            </div>
+                            <button
+                              className="career-icon-btn"
+                              type="button"
+                              onClick={() => openCareerEditor(career)}
+                              aria-label={`Editar ${career.nombre}`}
+                              title="Editar carrera"
+                            >
+                              <img src={iconEditar} alt="" />
+                            </button>
+                          </div>
+                          <div className="career-readonly-grid">
+                            <div className="career-readonly-field">
+                              <span>Nombre</span>
+                              <strong>{career.nombre || 'Sin nombre'}</strong>
+                            </div>
+                            <div className="career-readonly-field">
+                              <span>Area</span>
+                              <strong>{getAreaName(career.id_area)}</strong>
+                            </div>
+                            <div className="career-readonly-field">
+                              <span>Estado de carrera</span>
+                              <strong>{career.activa ? 'Activa' : 'Inactiva'}</strong>
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
+              );
+            })}
+            {filteredCareers.length === 0 && (
+              <tr>
+                <td className="admin-empty-cell" colSpan="4">
+                  No se encuentran resultados.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {editingCareer && (
+        <div className="admin-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="career-edit-title">
+          <div className="admin-modal-content career-edit-modal">
+            <div className="admin-modal-header">
+              <div>
+                <h3 id="career-edit-title">Editar carrera</h3>
+                <p>Actualiza los campos permitidos del catalogo.</p>
+              </div>
+              <button
+                className="admin-modal-close"
+                type="button"
+                onClick={() => setEditingCareer(null)}
+                aria-label="Cerrar modal"
+              >
+                x
+              </button>
+            </div>
+
             <div className="admin-form-grid">
               <label>
                 Nombre
                 <input
                   className="admin-input"
-                  value={newCareer.nombre}
-                  onChange={(e) => setNewCareer((prev) => ({ ...prev, nombre: e.target.value }))}
+                  value={editingCareer.nombre || ''}
+                  onChange={(e) => updateEditingCareer('nombre', e.target.value)}
                 />
               </label>
               <label>
                 Area
                 <select
                   className="admin-input"
-                  value={newCareer.id_area}
-                  onChange={(e) => setNewCareer((prev) => ({ ...prev, id_area: e.target.value }))}
+                  value={editingCareer.id_area || ''}
+                  onChange={(e) => updateEditingCareer('id_area', e.target.value)}
                 >
                   <option value="">Selecciona un area</option>
                   {areas.map((area) => (
@@ -551,50 +876,37 @@ function DashboardAdmin() {
                   ))}
                 </select>
               </label>
+              <label className="career-switch-field">
+                <span>Estado de carrera</span>
+                <input
+                  className="career-switch-input"
+                  type="checkbox"
+                  checked={Boolean(editingCareer.activa)}
+                  onChange={(e) => updateEditingCareer('activa', e.target.checked)}
+                />
+                <span className="career-switch" aria-hidden="true">
+                  <span className="career-switch-thumb">
+                    <img src={iconActivar} alt="" />
+                  </span>
+                </span>
+                <strong>{editingCareer.activa ? 'Activa' : 'Inactiva'}</strong>
+              </label>
             </div>
-            <div className="admin-card-actions">
-              <button className="btn btn-primary" disabled={guardando} onClick={() => saveCareer(newCareer)}>
-                Agregar carrera
+
+            <div className="admin-modal-actions">
+              <button className="btn btn-primary btn-icon" type="button" disabled={guardando} onClick={submitCareerEditor}>
+                <img src={iconGuardar} alt="" />
+                Guardar cambios
               </button>
             </div>
-          </article>
-          {careersCatalog.map((career, index) => (
-            <article key={career.id} className="admin-card">
-              <div className="admin-form-grid">
-                <label>
-                  Nombre
-                  <input
-                    className="admin-input"
-                    value={career.nombre || ''}
-                    onChange={(e) => updateCatalogField(setCareersCatalog, index, 'nombre', e.target.value)}
-                  />
-                </label>
-                <label>
-                  Area
-                  <select
-                    className="admin-input"
-                    value={career.id_area || ''}
-                    onChange={(e) => updateCatalogField(setCareersCatalog, index, 'id_area', e.target.value)}
-                  >
-                    {areas.map((area) => (
-                      <option key={area.id} value={area.id}>{area.nom_area}</option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-              <div className="admin-card-actions">
-                <button className="btn btn-primary" disabled={guardando} onClick={() => saveCareer(career)}>
-                  Guardar
-                </button>
-                <button className="btn btn-danger" disabled={guardando} onClick={() => deleteCareer(career.id)}>
-                  Eliminar
-                </button>
-              </div>
-            </article>
-          ))}
+          </div>
         </div>
-      </section>
+      )}
+    </section>
+  );
 
+  const renderSupportEntitiesSection = () => (
+    <div className="admin-catalogs">
       <section className="admin-section">
         <div className="admin-section-header">
           <h2>Entidades de apoyo</h2>
@@ -1000,7 +1312,7 @@ function DashboardAdmin() {
         </p>
       </div>
 
-      {renderCatalogSection()}
+      {renderSupportEntitiesSection()}
 
       <div className="admin-grid">
         {renderUniversityForm(newUniversity, setNewUniversity, null, true)}
@@ -1017,80 +1329,76 @@ function DashboardAdmin() {
     return (
       <>
         {renderFlash()}
-        {vistaActual === 'usuarios' ? renderUserSection() : renderUniversitiesSection()}
+        {vistaActual === 'usuarios' && renderUserSection()}
+        {vistaActual === 'carreras' && renderCareersSection()}
+        {vistaActual === 'universidades' && renderUniversitiesSection()}
       </>
     );
   };
 
   return (
-    <div className={`dashboard admin-dashboard ${modoOscuro ? 'dark' : 'light'}`}>
-      <header className="dashboard-header">
-        <div className="header-left">
-          <button
-            className="dashboard-sidebar-toggle"
-            onClick={() => setMenuAbierto((prev) => !prev)}
-            aria-expanded={menuAbierto}
-            aria-controls="dashboard-sidebar-admin"
-            aria-label="Abrir menu lateral"
-          >
-            <span className="hamburger-line" />
-            <span className="hamburger-line" />
-            <span className="hamburger-line" />
-          </button>
-          <button className="header-logo" onClick={() => setVistaActual('usuarios')} aria-label="Dashboard admin">
-            <img src={logoOrientarso} alt="Orientarso" />
-          </button>
-        </div>
-      </header>
-
-      <div
-        className={`dashboard-overlay ${menuAbierto ? 'open' : ''}`}
-        onClick={() => setMenuAbierto(false)}
-        aria-hidden={!menuAbierto}
-      />
-
+    <div className={`dashboard admin-dashboard ${modoOscuro ? 'dark' : 'light'} ${menuAbierto ? 'sidebar-expanded' : 'sidebar-collapsed'}`}>
       <aside
         id="dashboard-sidebar-admin"
         className={`dashboard-sidebar ${menuAbierto ? 'open' : ''}`}
-        aria-hidden={!menuAbierto}
+        aria-label="Navegacion de administrador"
       >
+        <button
+          className="sidebar-expand-toggle"
+          onClick={() => setMenuAbierto((prev) => !prev)}
+          aria-expanded={menuAbierto}
+          aria-controls="dashboard-sidebar-admin"
+          aria-label={menuAbierto ? 'Contraer menu lateral' : 'Expandir menu lateral'}
+        >
+          <span>{'>'}</span>
+        </button>
+        <button
+          className="sidebar-brand"
+          onClick={() => setVistaActual('usuarios')}
+          aria-label="Ir al dashboard admin"
+        >
+          <img src={logoOrientarso} alt="Orientarso" />
+          <span className="sidebar-label">Orientarso</span>
+        </button>
         <div className="sidebar-user">
           <div className="user-avatar user-avatar-static">
             <img src={logoOrientarso} alt="Administrador" />
           </div>
-          <div className="user-name">{username}</div>
-          <div className="admin-sidebar-label">Dashboard_admin</div>
+          <div>
+            <div className="user-name sidebar-label">{username}</div>
+            <div className="admin-sidebar-label sidebar-label">Dashboard admin</div>
+          </div>
         </div>
-        <div className="sidebar-divider" />
-        <div className="sidebar-title">Menu admin</div>
-        <button
-          className={`sidebar-item ${vistaActual === 'usuarios' ? 'active' : ''}`}
-          onClick={() => {
-            setVistaActual('usuarios');
-            setMenuAbierto(false);
-          }}
-        >
-          <img src={iconAccount} alt="" className="menu-icon-img" />
-          Usuarios
-        </button>
-        <button
-          className={`sidebar-item ${vistaActual === 'universidades' ? 'active' : ''}`}
-          onClick={() => {
-            setVistaActual('universidades');
-            setMenuAbierto(false);
-          }}
-        >
-          <img src={iconHome} alt="" className="menu-icon-img" />
-          Universidades
-        </button>
-        <div className="sidebar-divider" />
-        <button className="sidebar-item" onClick={() => setModoOscuro((prev) => !prev)}>
-          <img src={modoOscuro ? iconSun : iconMoon} alt="" className="menu-icon-img" />
-          {modoOscuro ? 'Modo claro' : 'Modo oscuro'}
-        </button>
-        <div className="sidebar-divider" />
+        <nav className="sidebar-nav" aria-label="Opciones admin">
+          <button
+            className={`sidebar-item ${vistaActual === 'usuarios' ? 'active' : ''}`}
+            onClick={() => setVistaActual('usuarios')}
+          >
+            <img src={iconAccount} alt="" className="menu-icon-img" />
+            <span className="sidebar-label">Usuarios</span>
+          </button>
+          <button
+            className={`sidebar-item ${vistaActual === 'carreras' ? 'active' : ''}`}
+            onClick={() => setVistaActual('carreras')}
+          >
+            <img src={iconHome} alt="" className="menu-icon-img" />
+            <span className="sidebar-label">Carreras</span>
+          </button>
+          <button
+            className={`sidebar-item ${vistaActual === 'universidades' ? 'active' : ''}`}
+            onClick={() => setVistaActual('universidades')}
+          >
+            <img src={iconHome} alt="" className="menu-icon-img" />
+            <span className="sidebar-label">Universidades</span>
+          </button>
+          <button className="sidebar-item" onClick={() => setModoOscuro((prev) => !prev)}>
+            <img src={modoOscuro ? iconSun : iconMoon} alt="" className="menu-icon-img" />
+            <span className="sidebar-label">{modoOscuro ? 'Modo claro' : 'Modo oscuro'}</span>
+          </button>
+        </nav>
         <button className="sidebar-item logout" onClick={handleLogout}>
-          Cerrar sesion
+          <span className="sidebar-symbol" aria-hidden="true">{'<'}</span>
+          <span className="sidebar-label">Cerrar sesion</span>
         </button>
       </aside>
 

@@ -16,8 +16,8 @@ import bosqueImg from '../assets/Universidad El Bosque.jpeg';
 import tadeoImg from '../assets/Universidad Jorge Tadeo Lozano.jpg';
 import nacionalImg from '../assets/Universidad Nacional de Colombia.jpg';
 import pilotoImg from '../assets/Universidad Piloto de Colombia.jpg';
+import { API_BASE } from '../config/api';
 
-const API_BASE = 'http://localhost:8000';
 const OPCIONES = [
   { label: 'De acuerdo', value: 25 },
   { label: 'A veces', value: 15 },
@@ -129,7 +129,7 @@ function Dashboard() {
 
     const cargarNombre = async () => {
       try {
-        const response = await axios.get('http://localhost:8000/api/user/', {
+        const response = await axios.get(`${API_BASE}/api/user/`, {
           withCredentials: true
         });
         if (response?.data?.is_admin) {
@@ -144,7 +144,16 @@ function Dashboard() {
           setUsername(nombre);
         }
       } catch (error) {
-        // Si falla la consulta, se mantiene el valor local
+        if (error.response?.status === 401 || error.response?.status === 403) {
+          localStorage.removeItem('fullName');
+          localStorage.removeItem('username');
+          localStorage.removeItem('token');
+          localStorage.removeItem('isAuthenticated');
+          localStorage.removeItem('userRole');
+          localStorage.removeItem('isAdmin');
+          sessionStorage.clear();
+          navigate('/', { replace: true });
+        }
       }
     };
 
@@ -193,7 +202,7 @@ function Dashboard() {
 
   const handleLogout = async () => {
     try {
-      await axios.post('http://localhost:8000/api/logout/', {}, { withCredentials: true });
+      await axios.post(`${API_BASE}/api/logout/`, {}, { withCredentials: true });
     } catch (error) {
       // Si falla el backend igual limpiamos el cliente
     } finally {

@@ -1,4 +1,6 @@
 import json
+import csv
+from io import BytesIO, StringIO
 
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.models import User
@@ -33,8 +35,15 @@ def normalize_bool(value):
     if isinstance(value, bool):
         return value
     if isinstance(value, str):
-        return value.strip().lower() in ['1', 'true', 'si', 'yes']
+        return value.strip().lower() in ['1', 'true', 'si', 'sí', 'yes', 'activo', 'activa']
     return bool(value)
+
+
+def ensure_careers_active_column(cursor):
+    cursor.execute("SHOW COLUMNS FROM carreras LIKE 'activa'")
+    if cursor.fetchone():
+        return
+    cursor.execute('ALTER TABLE carreras ADD COLUMN activa TINYINT(1) NOT NULL DEFAULT 1')
 
 
 def get_or_create_profile(user, tipo_documento='CC'):
@@ -211,11 +220,26 @@ def serialize_university_rows():
 
 def fetch_catalog_data():
     with connection.cursor() as cursor:
+        ensure_careers_active_column(cursor)
         cursor.execute('SELECT id, nom_area FROM tb_area ORDER BY nom_area')
         areas = dictfetchall(cursor)
 
-        cursor.execute('SELECT ID AS id, Nom_carrera AS nombre, ID_area AS id_area FROM carreras ORDER BY Nom_carrera')
+        cursor.execute(
+            '''
+            SELECT
+                c.ID AS id,
+                c.Nom_carrera AS nombre,
+                c.ID_area AS id_area,
+                a.nom_area AS area,
+                c.activa
+            FROM carreras c
+            LEFT JOIN tb_area a ON a.id = c.ID_area
+            ORDER BY c.Nom_carrera
+            '''
+        )
         carreras = dictfetchall(cursor)
+        for carrera in carreras:
+            carrera['activa'] = bool(carrera['activa'])
 
         cursor.execute(
             '''
@@ -621,17 +645,19 @@ def api_admin_career_create(request):
     data = parse_json_request(request)
     nombre = (data.get('nombre') or '').strip()
     id_area = data.get('id_area')
+    activa = normalize_bool(data.get('activa', True))
     if not nombre or not id_area:
         return Response({'error': 'Nombre e area son obligatorios'}, status=status.HTTP_400_BAD_REQUEST)
 
     with connection.cursor() as cursor:
+        ensure_careers_active_column(cursor)
         cursor.execute(
-            'INSERT INTO carreras (Nom_carrera, ID_area) VALUES (%s, %s)',
-            [nombre, id_area],
+            'INSERT INTO carreras (Nom_carrera, ID_area, activa) VALUES (%s, %s, %s)',
+            [nombre, id_area, 1 if activa else 0],
         )
         career_id = cursor.lastrowid
 
-    return Response({'id': career_id, 'nombre': nombre, 'id_area': id_area}, status=status.HTTP_201_CREATED)
+    return Response({'id': career_id, 'nombre': nombre, 'id_area': id_area, 'activa': activa}, status=status.HTTP_201_CREATED)
 
 
 @api_view(['PUT', 'DELETE'])
@@ -642,25 +668,108 @@ def api_admin_career_detail(request, career_id):
         return error_response
 
     with connection.cursor() as cursor:
+        ensure_careers_active_column(cursor)
         if request.method == 'DELETE':
-            cursor.execute('DELETE FROM beneficios_carrera WHERE id_carrera = %s', [career_id])
-            cursor.execute('DELETE FROM convenios WHERE id_carrera = %s', [career_id])
-            cursor.execute('DELETE FROM carrera_universidad WHERE id_carrera = %s', [career_id])
-            cursor.execute('DELETE FROM carreras WHERE ID = %s', [career_id])
-            return Response({'message': 'Carrera eliminada'}, status=status.HTTP_200_OK)
+            cursor.execute('UPDATE carreras SET activa = 0 WHERE ID = %s', [career_id])
+            cursor.execute('UPDATE carrera_universidad SET activa = 0 WHERE id_carrera = %s', [career_id])
+            return Response({'message': 'Carrera desactivada'}, status=status.HTTP_200_OK)
 
         data = parse_json_request(request)
         nombre = (data.get('nombre') or '').strip()
         id_area = data.get('id_area')
+        activa = normalize_bool(data.get('activa', True))
         if not nombre or not id_area:
             return Response({'error': 'Nombre e area son obligatorios'}, status=status.HTTP_400_BAD_REQUEST)
 
         cursor.execute(
-            'UPDATE carreras SET Nom_carrera = %s, ID_area = %s WHERE ID = %s',
-            [nombre, id_area, career_id],
+            'UPDATE carreras SET Nom_carrera = %s, ID_area = %s, activa = %s WHERE ID = %s',
+            [nombre, id_area, 1 if activa else 0, career_id],
         )
 
-    return Response({'id': career_id, 'nombre': nombre, 'id_area': id_area}, status=status.HTTP_200_OK)
+    return Response({'id': career_id, 'nombre': nombre, 'id_area': id_area, 'activa': activa}, status=status.HTTP_200_OK)
+
+
+def parse_career_bulk_file(uploaded_file):
+    filename = (uploaded_file.name or '').lower()
+    if filename.endswith('.csv'):
+        content = uploaded_file.read().decode('utf-8-sig')
+        return list(csv.DictReader(StringIO(content)))
+
+    if filename.endswith('.xlsx'):
+        from openpyxl import load_workbook
+
+        workbook = load_workbook(BytesIO(uploaded_file.read()), read_only=True, data_only=True)
+        sheet = workbook.active
+        rows = list(sheet.iter_rows(values_only=True))
+        if not rows:
+            return []
+        headers = [str(cell or '').strip().lower() for cell in rows[0]]
+        return [
+            {headers[index]: value for index, value in enumerate(row) if index < len(headers)}
+            for row in rows[1:]
+        ]
+
+    raise ValueError('El archivo debe ser CSV o XLSX')
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def api_admin_career_bulk_upload(request):
+    _, error_response = ensure_admin_user(request)
+    if error_response:
+        return error_response
+
+    uploaded_file = request.FILES.get('archivo') or request.FILES.get('file')
+    if not uploaded_file:
+        return Response({'error': 'Debes seleccionar un archivo CSV o XLSX'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        rows = parse_career_bulk_file(uploaded_file)
+    except ValueError as exc:
+        return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+    created = 0
+    updated = 0
+    skipped = 0
+
+    with connection.cursor() as cursor:
+        ensure_careers_active_column(cursor)
+        cursor.execute('SELECT id, LOWER(nom_area) AS area FROM tb_area')
+        area_by_name = {row['area']: row['id'] for row in dictfetchall(cursor)}
+
+        for row in rows:
+            normalized = {str(key).strip().lower(): value for key, value in row.items() if key}
+            nombre = str(normalized.get('nombre') or normalized.get('carrera') or '').strip()
+            id_area = normalized.get('id_area') or normalized.get('area_id')
+            area_name = str(normalized.get('area') or normalized.get('área') or '').strip().lower()
+            activa = normalize_bool(normalized.get('estado', normalized.get('activa', True)))
+
+            if not id_area and area_name:
+                id_area = area_by_name.get(area_name)
+
+            if not nombre or not id_area:
+                skipped += 1
+                continue
+
+            cursor.execute('SELECT ID FROM carreras WHERE LOWER(Nom_carrera) = LOWER(%s)', [nombre])
+            existing = cursor.fetchone()
+            if existing:
+                cursor.execute(
+                    'UPDATE carreras SET ID_area = %s, activa = %s WHERE ID = %s',
+                    [id_area, 1 if activa else 0, existing[0]],
+                )
+                updated += 1
+            else:
+                cursor.execute(
+                    'INSERT INTO carreras (Nom_carrera, ID_area, activa) VALUES (%s, %s, %s)',
+                    [nombre, id_area, 1 if activa else 0],
+                )
+                created += 1
+
+    return Response(
+        {'message': 'Cargue finalizado', 'created': created, 'updated': updated, 'skipped': skipped},
+        status=status.HTTP_200_OK,
+    )
 
 
 @api_view(['POST'])

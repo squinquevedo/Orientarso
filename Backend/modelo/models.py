@@ -13,6 +13,7 @@ class Perfil(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     tipo_documento = models.CharField(max_length=10)
     rol = models.CharField(max_length=20, choices=ROL_CHOICES, default=ROL_ESTUDIANTE)
+    foto_perfil = models.CharField(max_length=255, blank=True, default='')
 
     def __str__(self):
         return self.user.username

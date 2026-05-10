@@ -1,12 +1,16 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import './Dashboard.css';
-import logoOrientarso from '../assets/logo.orientarso-removebg-preview.png';
 import iconHome from '../assets/house-door-fill.svg';
 import iconAccount from '../assets/person-circle.svg';
 import iconMoon from '../assets/moon-fill.svg';
 import iconSun from '../assets/brightness-high-fill.svg';
+import iconFlecha from '../assets/flecha.svg';
+import iconGuardar from '../assets/guardar.svg';
+import iconSalir from '../assets/salir.svg';
 import heroVideo from '../assets/Video_Orientación_Vocacional_Sin_Texto.mp4';
 import iconEncuesta from '../assets/encuesta-128x128.png';
 import iconAnalisis from '../assets/análisis-128x128.png';
@@ -17,6 +21,7 @@ import tadeoImg from '../assets/Universidad Jorge Tadeo Lozano.jpg';
 import nacionalImg from '../assets/Universidad Nacional de Colombia.jpg';
 import pilotoImg from '../assets/Universidad Piloto de Colombia.jpg';
 import { API_BASE } from '../config/api';
+import ProfilePhotoModal from './ProfilePhotoModal';
 
 const OPCIONES = [
   { label: 'De acuerdo', value: 25 },
@@ -25,6 +30,25 @@ const OPCIONES = [
   { label: 'Desacuerdo', value: 0 },
 ];
 const MAX_OPTION = Math.max(...OPCIONES.map((o) => o.value));
+
+const REPORT_FIELDS = [
+  { id: 'universidad', label: 'Universidad' },
+  { id: 'carrera_vinculada', label: 'Carreras vinculadas a la universidad' },
+  { id: 'carrera_normal', label: 'Carreras normales' },
+  { id: 'valor_semestre', label: 'Valor del semestre' },
+  { id: 'duracion', label: 'Duracion' },
+  { id: 'tipo_universidad', label: 'Tipo de universidad' },
+  { id: 'convenio', label: 'Convenios - nombre del convenio' },
+  { id: 'beneficio', label: 'Beneficios - nombre del beneficio' },
+  { id: 'localidad', label: 'Localidad' },
+  { id: 'direccion', label: 'Direccion' },
+];
+
+function refreshImageUrl(url) {
+  if (!url) return '';
+  const separator = url.includes('?') ? '&' : '?';
+  return `${url}${separator}v=${Date.now()}`;
+}
 
 function getCookie(name) {
   const value = `; ${document.cookie}`;
@@ -91,9 +115,7 @@ function Dashboard() {
   const [vistaActual, setVistaActual] = useState('inicio');
   const [menuAbierto, setMenuAbierto] = useState(false);
   const [fotoModalAbierto, setFotoModalAbierto] = useState(false);
-  const [fotoPerfil, setFotoPerfil] = useState(
-    'https://images.unsplash.com/photo-1544723795-3fb6469f5b39?w=800'
-  );
+  const [fotoPerfil, setFotoPerfil] = useState('');
   const [modoOscuro, setModoOscuro] = useState(false);
   const [preguntas, setPreguntas] = useState([]);
   const [respuestas, setRespuestas] = useState({});
@@ -102,13 +124,33 @@ function Dashboard() {
   const [areasMap, setAreasMap] = useState({});
   const [guardandoTest, setGuardandoTest] = useState(false);
   const [errorTest, setErrorTest] = useState('');
-  const fileInputRef = useRef(null);
+  const [testCompleted, setTestCompleted] = useState(false);
+  const [reportData, setReportData] = useState({ universities: [], carreras_catalogo: [] });
+  const [reportModalOpen, setReportModalOpen] = useState(false);
+  const [includedReportFields, setIncludedReportFields] = useState([]);
+  const [draggedReportField, setDraggedReportField] = useState(null);
   const navigate = useNavigate();
+
+  const loadReportData = useCallback(async () => {
+    try {
+      const response = await axios.get(`${API_BASE}/api/universidades-reporte/`, {
+        withCredentials: true,
+      });
+      setReportData({
+        universities: response.data?.universities || [],
+        carreras_catalogo: response.data?.carreras_catalogo || [],
+      });
+      return response.data || {};
+    } catch (error) {
+      setReportData({ universities: [], carreras_catalogo: [] });
+      return {};
+    }
+  }, []);
 
   useEffect(() => {
     const isAuthenticated = localStorage.getItem('isAuthenticated') === 'true';
     if (!isAuthenticated) {
-      navigate('/', { replace: true });
+      navigate('/login', { replace: true });
       return;
     }
 
@@ -143,6 +185,7 @@ function Dashboard() {
           localStorage.setItem('fullName', nombre);
           setUsername(nombre);
         }
+        setFotoPerfil(response?.data?.foto_perfil_url || '');
       } catch (error) {
         if (error.response?.status === 401 || error.response?.status === 403) {
           localStorage.removeItem('fullName');
@@ -152,13 +195,37 @@ function Dashboard() {
           localStorage.removeItem('userRole');
           localStorage.removeItem('isAdmin');
           sessionStorage.clear();
-          navigate('/', { replace: true });
+          navigate('/login', { replace: true });
         }
       }
     };
 
     cargarNombre();
   }, [navigate]);
+
+  const saveProfilePhoto = async (photoFile) => {
+    const formData = new FormData();
+    formData.append('foto', photoFile);
+    await axios.get(`${API_BASE}/api/csrf/`, { withCredentials: true });
+    const csrfToken = getCookie('csrftoken');
+
+    const response = await axios.post(`${API_BASE}/api/user/foto-perfil/`, formData, {
+      withCredentials: true,
+      headers: {
+        'Content-Type': 'multipart/form-data',
+        'X-CSRFToken': csrfToken,
+      },
+    });
+
+    setFotoPerfil(refreshImageUrl(response?.data?.foto_perfil_url || ''));
+  };
+
+  useEffect(() => {
+    const isAuthenticated = localStorage.getItem('isAuthenticated') === 'true';
+    if (!isAuthenticated) return;
+
+    loadReportData();
+  }, []);
 
   useEffect(() => {
     const isAuthenticated = localStorage.getItem('isAuthenticated') === 'true';
@@ -250,7 +317,137 @@ function Dashboard() {
       .sort((a, b) => b.pct - a.pct);
   }, [maxPorArea, puntajePorArea]);
 
+  const affinityByArea = useMemo(() => {
+    return resultados.reduce((acc, resultado) => {
+      acc[String(resultado.areaKey)] = resultado.pct;
+      return acc;
+    }, {});
+  }, [resultados]);
+
+  const topResultAreaKey = resultados[0]?.areaKey ? String(resultados[0].areaKey) : '';
+
+  const recommendedCareers = useMemo(() => {
+    if (!testCompleted || !topResultAreaKey) return [];
+    return (reportData.carreras_catalogo || [])
+      .filter((career) => career.activa !== false)
+      .filter((career) => String(career.id_area) === topResultAreaKey)
+      .map((career) => ({
+        ...career,
+        affinity: affinityByArea[String(career.id_area)] || 0,
+        areaName: areasMap[String(career.id_area)] || career.area || `Area ${career.id_area}`,
+      }))
+      .sort((a, b) => b.affinity - a.affinity || String(a.nombre).localeCompare(String(b.nombre)));
+  }, [affinityByArea, areasMap, reportData.carreras_catalogo, testCompleted, topResultAreaKey]);
+
+  const reportRows = useMemo(() => {
+    if (!testCompleted) return [];
+    const rows = [];
+
+    recommendedCareers.forEach((normalCareer) => {
+      let foundUniversityLink = false;
+
+      (reportData.universities || []).forEach((university) => {
+        (university.carreras || [])
+          .filter((linkedCareer) => String(linkedCareer.id_carrera) === String(normalCareer.id))
+          .forEach((linkedCareer) => {
+            foundUniversityLink = true;
+            const benefits = (university.beneficios_carrera || []).filter(
+              (benefit) => String(benefit.id_carrera) === String(normalCareer.id)
+            );
+            const agreements = (university.convenios || []).filter(
+              (agreement) => String(agreement.id_carrera) === String(normalCareer.id)
+            );
+            rows.push({
+              universidad: university.nombre || '',
+              carrera_vinculada: linkedCareer.nombre_carrera || normalCareer.nombre || '',
+              carrera_normal: normalCareer.nombre || '',
+              valor_semestre: linkedCareer.valor_semestre || '',
+              duracion: linkedCareer.duracion_semestres ? `${linkedCareer.duracion_semestres} semestres` : '',
+              tipo_universidad: university.tipo || '',
+              convenio: agreements.map((agreement) => agreement.nombre_convenio).filter(Boolean).join(', '),
+              beneficio: benefits.map((benefit) => benefit.tipo_beneficio).filter(Boolean).join(', '),
+              localidad: university.localidad || '',
+              direccion: university.direccion || '',
+              affinity: normalCareer.affinity || 0,
+            });
+          });
+      });
+
+      if (!foundUniversityLink) {
+        rows.push({
+          universidad: '',
+          carrera_vinculada: '',
+          carrera_normal: normalCareer.nombre || '',
+          valor_semestre: '',
+          duracion: '',
+          tipo_universidad: '',
+          convenio: '',
+          beneficio: '',
+          localidad: '',
+          direccion: '',
+          affinity: normalCareer.affinity || 0,
+        });
+      }
+    });
+
+    return rows.sort((a, b) => b.affinity - a.affinity);
+  }, [recommendedCareers, reportData.universities, testCompleted]);
+
+  const allUniversityReportRows = useMemo(() => {
+    const rows = [];
+
+    (reportData.universities || []).forEach((university) => {
+      const linkedCareers = university.carreras || [];
+
+      if (linkedCareers.length === 0) {
+        rows.push({
+          universidad: university.nombre || '',
+          carrera_vinculada: '',
+          carrera_normal: '',
+          valor_semestre: '',
+          duracion: '',
+          tipo_universidad: university.tipo || '',
+          convenio: '',
+          beneficio: '',
+          localidad: university.localidad || '',
+          direccion: university.direccion || '',
+          affinity: 0,
+        });
+        return;
+      }
+
+      linkedCareers.forEach((linkedCareer) => {
+        const benefits = (university.beneficios_carrera || []).filter(
+          (benefit) => String(benefit.id_carrera) === String(linkedCareer.id_carrera)
+        );
+        const agreements = (university.convenios || []).filter(
+          (agreement) => String(agreement.id_carrera) === String(linkedCareer.id_carrera)
+        );
+
+        rows.push({
+          universidad: university.nombre || '',
+          carrera_vinculada: linkedCareer.nombre_carrera || '',
+          carrera_normal: linkedCareer.nombre_carrera || '',
+          valor_semestre: linkedCareer.valor_semestre || '',
+          duracion: linkedCareer.duracion_semestres ? `${linkedCareer.duracion_semestres} semestres` : '',
+          tipo_universidad: university.tipo || '',
+          convenio: agreements.map((agreement) => agreement.nombre_convenio).filter(Boolean).join(', '),
+          beneficio: benefits.map((benefit) => benefit.tipo_beneficio).filter(Boolean).join(', '),
+          localidad: university.localidad || '',
+          direccion: university.direccion || '',
+          affinity: 0,
+        });
+      });
+    });
+
+    return rows;
+  }, [reportData.universities]);
+
   const enviarTest = async () => {
+    if (Object.keys(respuestas).length < preguntas.length) {
+      setErrorTest('Responde todas las preguntas antes de ver tus resultados.');
+      return;
+    }
     setGuardandoTest(true);
     setErrorTest('');
     try {
@@ -272,12 +469,74 @@ function Dashboard() {
           },
         }
       );
+      await loadReportData();
+      setTestCompleted(true);
       setVistaActual('resultados');
     } catch (error) {
       setErrorTest(error.response?.data?.error || 'Error al guardar el intento');
     } finally {
       setGuardandoTest(false);
     }
+  };
+
+  const availableReportFields = REPORT_FIELDS.filter(
+    (field) => !includedReportFields.includes(field.id)
+  );
+
+  const addReportField = (fieldId) => {
+    setIncludedReportFields((prev) => (prev.includes(fieldId) ? prev : [...prev, fieldId]));
+  };
+
+  const removeReportField = (fieldId) => {
+    setIncludedReportFields((prev) => prev.filter((id) => id !== fieldId));
+  };
+
+  const handleReportDrop = (event) => {
+    event.preventDefault();
+    if (draggedReportField) {
+      addReportField(draggedReportField);
+      setDraggedReportField(null);
+    }
+  };
+
+  const downloadReportPdf = () => {
+    if (includedReportFields.length === 0) return;
+    const selectedFields = includedReportFields
+      .map((fieldId) => REPORT_FIELDS.find((field) => field.id === fieldId))
+      .filter(Boolean);
+    const rows = reportRows.length > 0
+      ? reportRows
+      : allUniversityReportRows.length > 0
+        ? allUniversityReportRows
+        : recommendedCareers.map((career) => ({
+          carrera_normal: career.nombre,
+          carrera_vinculada: '',
+          universidad: '',
+          valor_semestre: '',
+          duracion: '',
+          tipo_universidad: '',
+          convenio: '',
+          beneficio: '',
+          localidad: '',
+          direccion: '',
+        }));
+
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+    doc.setFontSize(16);
+    doc.text('Reporte de recomendaciones vocacionales', 40, 40);
+    doc.setFontSize(10);
+    doc.text(`Generado para: ${username}`, 40, 58);
+
+    autoTable(doc, {
+      startY: 78,
+      head: [selectedFields.map((field) => field.label)],
+      body: rows.map((row) => selectedFields.map((field) => row[field.id] || '-')),
+      styles: { fontSize: 8, cellPadding: 5, overflow: 'linebreak' },
+      headStyles: { fillColor: [37, 99, 235], textColor: 255 },
+    });
+
+    doc.save('reporte_recomendaciones.pdf');
+    setReportModalOpen(false);
   };
 
   const renderContent = () => {
@@ -296,7 +555,10 @@ function Dashboard() {
                 <label>Primer nombre:</label>
                 <input type="text" value={username} readOnly className="form-control" />
               </div>
-              <button className="btn btn-primary">Guardar cambios</button>
+              <button className="btn btn-primary btn-icon">
+                <img src={iconGuardar} alt="" />
+                Guardar cambios
+              </button>
             </div>
             <div className="config-card">
               <h3>Cambiar contrasena</h3>
@@ -361,7 +623,7 @@ function Dashboard() {
             <button
               className="btn btn-primary"
               onClick={enviarTest}
-              disabled={Object.keys(respuestas).length === 0 || guardandoTest}
+              disabled={preguntas.length === 0 || Object.keys(respuestas).length < preguntas.length || guardandoTest}
             >
               {guardandoTest ? 'Guardando...' : 'Ver resultados'}
             </button>
@@ -388,14 +650,28 @@ function Dashboard() {
                 </div>
               ))}
             </div>
-            <div className="recomendaciones">
-              <h3>Carreras recomendadas</h3>
-              <ul>
-                <li>Ingenieria en Sistemas</li>
-                <li>Ciencias de la Computacion</li>
-                <li>Ingenieria de Software</li>
-              </ul>
-            </div>
+            {testCompleted && (
+              <div className="recomendaciones">
+                <div className="recomendaciones-header">
+                  <h3>Carreras recomendadas</h3>
+                  <button className="btn btn-primary" type="button" onClick={() => setReportModalOpen(true)}>
+                    Descargar reporte
+                  </button>
+                </div>
+                {recommendedCareers.length === 0 ? (
+                  <div className="resultado-empty">No hay carreras activas para recomendar.</div>
+                ) : (
+                  <ul>
+                    {recommendedCareers.map((career) => (
+                      <li key={career.id}>
+                        <strong>{career.nombre}</strong>
+                        <span>{career.areaName} - {career.affinity}% afinidad</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
           </div>
         );
 
@@ -524,6 +800,91 @@ function Dashboard() {
     }
   };
 
+  const renderReportModal = () => {
+    if (!reportModalOpen) return null;
+
+    return (
+      <div className="report-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="report-modal-title">
+        <div className="report-modal-content">
+          <div className="report-modal-header">
+            <div>
+              <h3 id="report-modal-title">Descargar reporte</h3>
+              <p>Arrastra las opciones que quieres mostrar en el PDF.</p>
+            </div>
+            <button className="report-modal-close" type="button" onClick={() => setReportModalOpen(false)}>
+              x
+            </button>
+          </div>
+
+          <div className="report-builder-grid">
+            <section className="report-option-box">
+              <h4>Opciones de reporte:</h4>
+              <div className="report-chip-list">
+                {availableReportFields.map((field) => (
+                  <button
+                    key={field.id}
+                    type="button"
+                    className="report-chip"
+                    draggable
+                    onDragStart={() => setDraggedReportField(field.id)}
+                    onClick={() => addReportField(field.id)}
+                  >
+                    {field.label}
+                  </button>
+                ))}
+                {availableReportFields.length === 0 && (
+                  <div className="resultado-empty">Todas las opciones fueron incluidas.</div>
+                )}
+              </div>
+            </section>
+
+            <section
+              className="report-option-box report-drop-zone"
+              onDragOver={(event) => event.preventDefault()}
+              onDrop={handleReportDrop}
+            >
+              <h4>Opciones incluidas en el reporte:</h4>
+              <div className="report-chip-list included">
+                {includedReportFields.map((fieldId) => {
+                  const field = REPORT_FIELDS.find((item) => item.id === fieldId);
+                  if (!field) return null;
+                  return (
+                    <button
+                      key={field.id}
+                      type="button"
+                      className="report-chip included"
+                      onClick={() => removeReportField(field.id)}
+                      title="Quitar opcion"
+                    >
+                      {field.label}
+                    </button>
+                  );
+                })}
+                {includedReportFields.length === 0 && (
+                  <div className="report-drop-empty">Arrastra aqui las opciones del reporte.</div>
+                )}
+              </div>
+            </section>
+          </div>
+
+          <div className="report-modal-actions">
+            <button className="btn btn-secondary" type="button" onClick={() => setReportModalOpen(false)}>
+              Cancelar
+            </button>
+            <button
+              className="btn btn-primary"
+              type="button"
+              onClick={downloadReportPdf}
+              disabled={includedReportFields.length === 0}
+            >
+              Descargar reporte
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className={`dashboard ${modoOscuro ? 'dark' : 'light'} ${menuAbierto ? 'sidebar-expanded' : 'sidebar-collapsed'}`}>
       <aside
@@ -538,15 +899,7 @@ function Dashboard() {
           aria-controls="dashboard-sidebar"
           aria-label={menuAbierto ? 'Contraer menu lateral' : 'Expandir menu lateral'}
         >
-          <span>{'>'}</span>
-        </button>
-        <button
-          className="sidebar-brand"
-          onClick={() => setVistaActual('inicio')}
-          aria-label="Ir al inicio del dashboard"
-        >
-          <img src={logoOrientarso} alt="Orientarso" />
-          <span className="sidebar-label">Orientarso</span>
+          <img src={iconFlecha} alt="" className="sidebar-arrow-icon" />
         </button>
         <button
           className="sidebar-user"
@@ -554,7 +907,11 @@ function Dashboard() {
           aria-label="Ver foto de perfil"
         >
           <span className="user-avatar">
-            <img src={fotoPerfil} alt="Foto de perfil" />
+            {fotoPerfil ? (
+              <img src={fotoPerfil} alt="Foto de perfil" />
+            ) : (
+              <img src={iconAccount} alt="" className="user-avatar-placeholder" />
+            )}
           </span>
           <span className="user-name sidebar-label">{username}</span>
         </button>
@@ -607,47 +964,22 @@ function Dashboard() {
           </button>
         </nav>
         <button className="sidebar-item logout" onClick={handleLogout}>
-          <span className="sidebar-symbol" aria-hidden="true">{'<'}</span>
+          <img src={iconSalir} alt="" className="menu-icon-img" />
           <span className="sidebar-label">Cerrar sesion</span>
         </button>
       </aside>
       {fotoModalAbierto && (
-        <div
-          className="photo-modal"
-          role="dialog"
-          aria-modal="true"
-          onClick={() => setFotoModalAbierto(false)}
-        >
-          <div className="photo-modal-content" onClick={(e) => e.stopPropagation()}>
-            <img
-              src={fotoPerfil}
-              alt="Foto de perfil completa"
-              className="photo-modal-image"
-            />
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              className="photo-file-input"
-              onChange={(e) => {
-                const file = e.target.files && e.target.files[0];
-                if (!file) return;
-                const nextUrl = URL.createObjectURL(file);
-                setFotoPerfil(nextUrl);
-              }}
-            />
-            <button
-              className="btn photo-edit-btn"
-              onClick={() => fileInputRef.current && fileInputRef.current.click()}
-            >
-              Editar foto
-            </button>
-          </div>
-        </div>
+        <ProfilePhotoModal
+          currentPhoto={fotoPerfil}
+          placeholderIcon={iconAccount}
+          onClose={() => setFotoModalAbierto(false)}
+          onSave={saveProfilePhoto}
+        />
       )}
       <main className="main-content">
         {renderContent()}
       </main>
+      {renderReportModal()}
     </div>
   );
 }

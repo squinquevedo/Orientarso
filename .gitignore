@@ -1,0 +1,2 @@
+media/user_photos/*
+!media/user_photos/.gitkeep

@@ -4,6 +4,7 @@ import axios from 'axios';
 import './Auth.css';
 import logoOrientarso from '../assets/logo.orientarso-removebg-preview.png';
 import { API_BASE } from '../config/api';
+import { useAuthRedirect } from '../utils/useAuthRedirect';
 
 function Login({ showHeader = true }) {
   const [username, setUsername] = useState('');
@@ -11,6 +12,7 @@ function Login({ showHeader = true }) {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  useAuthRedirect();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -30,11 +32,14 @@ function Login({ showHeader = true }) {
       localStorage.setItem('userRole', response.data.rol || 'estudiante');
       localStorage.setItem('isAdmin', response.data.is_admin ? 'true' : 'false');
 
-      navigate(response.data.is_admin ? '/dashboard_admin' : '/home');
+      navigate(response.data.is_admin ? '/dashboard_admin' : '/home', { replace: true });
     } catch (error) {
+      const errorMessage = error.response
+        ? error.response.data?.error || 'Error al iniciar sesion'
+        : 'No se pudo conectar con el servidor. Verifica que Django este corriendo en el puerto 8000.';
       setMessages([
         {
-          text: error.response?.data?.error || 'Error al iniciar sesión',
+          text: errorMessage,
           type: 'danger',
         },
       ]);

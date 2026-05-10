@@ -1,7 +1,9 @@
 import json
 import csv
+from pathlib import Path
 from io import BytesIO, StringIO
 
+from django.conf import settings
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.models import User
 from django.db import connection, transaction
@@ -75,12 +77,17 @@ def get_or_create_profile(user, tipo_documento='CC'):
 def build_user_payload(user, profile=None):
     profile = profile or get_or_create_profile(user)
     is_admin = profile.rol == Perfil.ROL_ADMIN or (user.email or '').lower() == ADMIN_EMAIL
+    foto_perfil_url = ''
+    if profile.foto_perfil:
+        foto_perfil_url = f'{settings.MEDIA_URL}{profile.foto_perfil}'
     return {
         'id': user.id,
         'username': user.username,
         'email': user.email,
         'first_name': user.first_name,
         'tipo_documento': profile.tipo_documento,
+        'foto_perfil': profile.foto_perfil,
+        'foto_perfil_url': foto_perfil_url,
         'rol': Perfil.ROL_ADMIN if is_admin else profile.rol,
         'is_admin': is_admin,
         'is_authenticated': user.is_authenticated,
@@ -451,7 +458,63 @@ def api_logout(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def api_user(request):
-    return Response(build_user_payload(request.user), status=status.HTTP_200_OK)
+    payload = build_user_payload(request.user)
+    if payload.get('foto_perfil_url'):
+        payload['foto_perfil_url'] = request.build_absolute_uri(payload['foto_perfil_url'])
+    return Response(payload, status=status.HTTP_200_OK)
+
+
+@csrf_exempt
+@api_view(['POST', 'DELETE'])
+@permission_classes([IsAuthenticated])
+def api_user_profile_photo(request):
+    profile = get_or_create_profile(request.user)
+
+    if request.method == 'DELETE':
+        if profile.foto_perfil:
+            old_path = settings.MEDIA_ROOT / profile.foto_perfil
+            if old_path.exists():
+                old_path.unlink()
+        profile.foto_perfil = ''
+        profile.save(update_fields=['foto_perfil'])
+        return Response({'foto_perfil_url': ''}, status=status.HTTP_200_OK)
+
+    uploaded_file = request.FILES.get('foto') or request.FILES.get('file')
+    if not uploaded_file:
+        return Response({'error': 'No se envio ninguna foto'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if uploaded_file.size > 1024 * 1024:
+        return Response({'error': 'La foto debe pesar maximo 1 MB'}, status=status.HTTP_400_BAD_REQUEST)
+
+    content_type = (uploaded_file.content_type or '').lower()
+    if content_type and not content_type.startswith('image/'):
+        return Response({'error': 'El archivo debe ser una imagen'}, status=status.HTTP_400_BAD_REQUEST)
+
+    photo_dir = settings.MEDIA_ROOT / 'user_photos'
+    photo_dir.mkdir(parents=True, exist_ok=True)
+
+    relative_path = Path('user_photos') / f'user_{request.user.id}.webp'
+    absolute_path = settings.MEDIA_ROOT / relative_path
+
+    if profile.foto_perfil and profile.foto_perfil != relative_path.as_posix():
+        old_path = settings.MEDIA_ROOT / profile.foto_perfil
+        if old_path.exists():
+            old_path.unlink()
+
+    with absolute_path.open('wb') as destination:
+        for chunk in uploaded_file.chunks():
+            destination.write(chunk)
+
+    profile.foto_perfil = relative_path.as_posix()
+    profile.save(update_fields=['foto_perfil'])
+
+    return Response(
+        {
+            'foto_perfil': profile.foto_perfil,
+            'foto_perfil_url': request.build_absolute_uri(f'{settings.MEDIA_URL}{profile.foto_perfil}'),
+        },
+        status=status.HTTP_200_OK,
+    )
 
 
 @ensure_csrf_cookie
@@ -494,6 +557,21 @@ def api_areas(request):
 
         areas = [{'id': row[0], 'nom_area': row[1]} for row in rows]
         return Response(areas, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def api_university_report_data(request):
+    try:
+        return Response(
+            {
+                'universities': serialize_university_rows(),
+                **fetch_catalog_data(),
+            },
+            status=status.HTTP_200_OK,
+        )
     except Exception as e:
         return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
@@ -712,12 +790,444 @@ def parse_career_bulk_file(uploaded_file):
     raise ValueError('El archivo debe ser CSV o XLSX')
 
 
+def get_normalized_value(normalized_row, *keys):
+    for key in keys:
+        value = normalized_row.get(key)
+        if value not in [None, '']:
+            return value
+    return ''
+
+
+def build_catalog_lookup(cursor):
+    cursor.execute('SELECT ID AS id, Nom_carrera AS nombre FROM carreras')
+    careers = dictfetchall(cursor)
+    cursor.execute('SELECT id, nombre FROM entidades_apoyo')
+    entities = dictfetchall(cursor)
+    return {
+        'career_by_id': {str(item['id']): item for item in careers},
+        'career_by_name': {str(item['nombre']).strip().lower(): item for item in careers},
+        'entity_by_id': {str(item['id']): item for item in entities},
+        'entity_by_name': {str(item['nombre']).strip().lower(): item for item in entities},
+    }
+
+
+def find_catalog_item(normalized, by_id, by_name, id_keys, name_keys):
+    item_id = get_normalized_value(normalized, *id_keys)
+    item_name = str(get_normalized_value(normalized, *name_keys)).strip()
+    if item_id not in [None, '']:
+        item = by_id.get(str(item_id).strip())
+        if item:
+            return item
+    if item_name:
+        return by_name.get(item_name.lower())
+    return None
+
+
+def normalize_date_cell(value):
+    if not value:
+        return ''
+    if hasattr(value, 'date') and callable(value.date):
+        return value.date().isoformat()
+    if hasattr(value, 'isoformat') and callable(value.isoformat):
+        return value.isoformat()
+    return str(value).strip()
+
+
+def parse_career_catalog_rows(rows):
+    parsed_rows = []
+    rejected_rows = []
+
+    with connection.cursor() as cursor:
+        ensure_careers_active_column(cursor)
+        cursor.execute('SELECT id, nom_area FROM tb_area')
+        areas = dictfetchall(cursor)
+        cursor.execute('SELECT ID AS id, LOWER(Nom_carrera) AS nombre FROM carreras')
+        existing_careers = dictfetchall(cursor)
+
+    area_by_id = {str(row['id']): row for row in areas}
+    area_by_name = {str(row['nom_area']).strip().lower(): row for row in areas}
+    existing_by_name = {row['nombre']: row['id'] for row in existing_careers}
+
+    def append_rejected(normalized_row, observation):
+        rejected_rows.append(
+            {
+                'nombre': str(get_normalized_value(normalized_row, 'nombre', 'carrera')).strip(),
+                'area': str(get_normalized_value(normalized_row, 'area', 'área', 'id_area', 'area_id')).strip(),
+                'estado': str(get_normalized_value(normalized_row, 'estado', 'activa')).strip() or 'activa',
+                'observacion': observation,
+            }
+        )
+
+    for row in rows:
+        normalized = {str(key).strip().lower(): value for key, value in row.items() if key}
+        nombre = str(get_normalized_value(normalized, 'nombre', 'carrera')).strip()
+        id_area = get_normalized_value(normalized, 'id_area', 'area_id')
+        area_name = str(get_normalized_value(normalized, 'area', 'área')).strip().lower()
+        area = None
+
+        if id_area not in [None, '']:
+            area = area_by_id.get(str(id_area).strip())
+        if not area and area_name:
+            area = area_by_name.get(area_name)
+
+        missing_fields = []
+        if not nombre:
+            missing_fields.append('nombre')
+        if not area:
+            missing_fields.append('area')
+        if missing_fields:
+            append_rejected(normalized, f"Campos obligatorios faltantes o invalidos: {', '.join(missing_fields)}.")
+            continue
+
+        action = 'actualizar' if nombre.lower() in existing_by_name else 'crear'
+        parsed_rows.append(
+            {
+                'nombre': nombre,
+                'id_area': area['id'],
+                'area': area['nom_area'],
+                'activa': normalize_bool(get_normalized_value(normalized, 'estado', 'activa') or True),
+                'accion': action,
+            }
+        )
+
+    return parsed_rows, rejected_rows
+
+
+def save_career_catalog_rows(rows):
+    created = 0
+    updated = 0
+
+    with connection.cursor() as cursor:
+        ensure_careers_active_column(cursor)
+        for row in rows:
+            nombre = (row.get('nombre') or row.get('carrera') or '').strip()
+            id_area = row.get('id_area') or row.get('area_id')
+            activa = normalize_bool(row.get('activa', row.get('estado', True)))
+            if not nombre or not id_area:
+                continue
+
+            cursor.execute('SELECT ID FROM carreras WHERE LOWER(Nom_carrera) = LOWER(%s)', [nombre])
+            existing = cursor.fetchone()
+            if existing:
+                cursor.execute(
+                    'UPDATE carreras SET ID_area = %s, activa = %s WHERE ID = %s',
+                    [id_area, 1 if activa else 0, existing[0]],
+                )
+                updated += 1
+            else:
+                cursor.execute(
+                    'INSERT INTO carreras (Nom_carrera, ID_area, activa) VALUES (%s, %s, %s)',
+                    [nombre, id_area, 1 if activa else 0],
+                )
+                created += 1
+
+    return created, updated
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def api_admin_university_career_link_preview(request):
+    _, error_response = ensure_admin_user(request)
+    if error_response:
+        return error_response
+
+    uploaded_file = request.FILES.get('archivo') or request.FILES.get('file')
+    if not uploaded_file:
+        return Response({'error': 'Debes seleccionar un archivo CSV o XLSX'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        rows = parse_career_bulk_file(uploaded_file)
+    except ValueError as exc:
+        return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+    with connection.cursor() as cursor:
+        cursor.execute('SELECT ID AS id, Nom_carrera AS nombre FROM carreras')
+        careers = dictfetchall(cursor)
+
+    career_by_id = {str(item['id']): item for item in careers}
+    career_by_name = {str(item['nombre']).strip().lower(): item for item in careers}
+    parsed_rows = []
+    rejected_rows = []
+
+    def append_rejected(normalized_row, observation):
+        rejected_rows.append(
+            {
+                'carrera': str(get_normalized_value(normalized_row, 'carrera', 'nombre', 'id_carrera', 'id carrera', 'career_id')).strip(),
+                'modalidad': str(get_normalized_value(normalized_row, 'modalidad')).strip(),
+                'duracion_semestres': str(get_normalized_value(normalized_row, 'duracion_semestres', 'duracion semestres', 'duracion')).strip(),
+                'valor_semestre': str(get_normalized_value(normalized_row, 'valor_semestre', 'valor semestre', 'valor')).strip(),
+                'jornada': str(get_normalized_value(normalized_row, 'jornada')).strip(),
+                'estado': str(get_normalized_value(normalized_row, 'estado', 'activa')).strip() or 'activa',
+                'observacion': observation,
+            }
+        )
+
+    for row in rows:
+        normalized = {str(key).strip().lower(): value for key, value in row.items() if key}
+        id_carrera = normalized.get('id_carrera') or normalized.get('id carrera') or normalized.get('career_id')
+        career_name = str(normalized.get('carrera') or normalized.get('nombre') or '').strip()
+        career = None
+
+        if id_carrera not in [None, '']:
+            career = career_by_id.get(str(id_carrera).strip())
+        if not career and career_name:
+            career = career_by_name.get(career_name.lower())
+
+        if not career:
+            append_rejected(
+                normalized,
+                'Carrera no encontrada. Por favor vincule la carrera en la BD.',
+            )
+            continue
+
+        modalidad = str(get_normalized_value(normalized, 'modalidad')).strip()
+        duracion_semestres = str(get_normalized_value(normalized, 'duracion_semestres', 'duracion semestres', 'duracion')).strip()
+        valor_semestre = str(get_normalized_value(normalized, 'valor_semestre', 'valor semestre', 'valor')).strip()
+        jornada = str(get_normalized_value(normalized, 'jornada')).strip()
+        missing_fields = []
+        if not modalidad:
+            missing_fields.append('modalidad')
+        if not duracion_semestres:
+            missing_fields.append('duracion_semestres')
+        if not valor_semestre:
+            missing_fields.append('valor_semestre')
+        if not jornada:
+            missing_fields.append('jornada')
+        if missing_fields:
+            append_rejected(normalized, f"Campos obligatorios faltantes: {', '.join(missing_fields)}.")
+            continue
+
+        parsed_rows.append(
+            {
+                'id_carrera': career['id'],
+                'carrera': career['nombre'],
+                'modalidad': modalidad,
+                'duracion_semestres': duracion_semestres,
+                'valor_semestre': valor_semestre,
+                'jornada': jornada,
+                'activa': normalize_bool(normalized.get('estado', normalized.get('activa', True))),
+            }
+        )
+
+    return Response(
+        {
+            'rows': parsed_rows,
+            'rejected_rows': rejected_rows,
+            'loaded': len(parsed_rows),
+            'rejected': len(rejected_rows),
+            'skipped': len(rejected_rows),
+        },
+        status=status.HTTP_200_OK,
+    )
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def api_admin_university_benefit_preview(request):
+    _, error_response = ensure_admin_user(request)
+    if error_response:
+        return error_response
+
+    uploaded_file = request.FILES.get('archivo') or request.FILES.get('file')
+    if not uploaded_file:
+        return Response({'error': 'Debes seleccionar un archivo CSV o XLSX'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        rows = parse_career_bulk_file(uploaded_file)
+    except ValueError as exc:
+        return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+    with connection.cursor() as cursor:
+        catalogs = build_catalog_lookup(cursor)
+
+    parsed_rows = []
+    rejected_rows = []
+
+    def append_rejected(normalized_row, observation):
+        rejected_rows.append(
+            {
+                'carrera': str(get_normalized_value(normalized_row, 'carrera', 'nombre_carrera', 'id_carrera', 'id carrera')).strip(),
+                'tipo_beneficio': str(get_normalized_value(normalized_row, 'tipo_beneficio', 'tipo beneficio', 'beneficio')).strip(),
+                'porcentaje_descuento': str(get_normalized_value(normalized_row, 'porcentaje_descuento', 'porcentaje descuento', 'porcentaje')).strip(),
+                'descripcion': str(get_normalized_value(normalized_row, 'descripcion', 'descripción')).strip(),
+                'observacion': observation,
+            }
+        )
+
+    for row in rows:
+        normalized = {str(key).strip().lower(): value for key, value in row.items() if key}
+        career = find_catalog_item(
+            normalized,
+            catalogs['career_by_id'],
+            catalogs['career_by_name'],
+            ['id_carrera', 'id carrera', 'career_id'],
+            ['carrera', 'nombre_carrera', 'nombre'],
+        )
+        tipo_beneficio = str(get_normalized_value(normalized, 'tipo_beneficio', 'tipo beneficio', 'beneficio')).strip()
+
+        if not career:
+            append_rejected(normalized, 'Carrera no encontrada. Por favor vincule la carrera en la BD.')
+            continue
+        if not tipo_beneficio:
+            append_rejected(normalized, 'Campo obligatorio faltante: tipo_beneficio.')
+            continue
+
+        parsed_rows.append(
+            {
+                'id_carrera': career['id'],
+                'carrera': career['nombre'],
+                'tipo_beneficio': tipo_beneficio,
+                'porcentaje_descuento': str(get_normalized_value(normalized, 'porcentaje_descuento', 'porcentaje descuento', 'porcentaje')).strip(),
+                'descripcion': str(get_normalized_value(normalized, 'descripcion', 'descripción')).strip(),
+            }
+        )
+
+    return Response(
+        {
+            'rows': parsed_rows,
+            'rejected_rows': rejected_rows,
+            'loaded': len(parsed_rows),
+            'rejected': len(rejected_rows),
+            'skipped': len(rejected_rows),
+        },
+        status=status.HTTP_200_OK,
+    )
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def api_admin_university_agreement_preview(request):
+    _, error_response = ensure_admin_user(request)
+    if error_response:
+        return error_response
+
+    uploaded_file = request.FILES.get('archivo') or request.FILES.get('file')
+    if not uploaded_file:
+        return Response({'error': 'Debes seleccionar un archivo CSV o XLSX'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        rows = parse_career_bulk_file(uploaded_file)
+    except ValueError as exc:
+        return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+    with connection.cursor() as cursor:
+        catalogs = build_catalog_lookup(cursor)
+
+    parsed_rows = []
+    rejected_rows = []
+
+    def append_rejected(normalized_row, observation):
+        rejected_rows.append(
+            {
+                'carrera': str(get_normalized_value(normalized_row, 'carrera', 'nombre_carrera', 'id_carrera', 'id carrera')).strip(),
+                'entidad': str(get_normalized_value(normalized_row, 'entidad', 'entidad_apoyo', 'id_entidad', 'id entidad')).strip(),
+                'nombre_convenio': str(get_normalized_value(normalized_row, 'nombre_convenio', 'nombre convenio', 'convenio')).strip(),
+                'fecha_inicio': normalize_date_cell(get_normalized_value(normalized_row, 'fecha_inicio', 'fecha inicio')),
+                'fecha_fin': normalize_date_cell(get_normalized_value(normalized_row, 'fecha_fin', 'fecha fin')),
+                'vigente': str(get_normalized_value(normalized_row, 'vigente', 'estado')).strip() or 'vigente',
+                'descripcion': str(get_normalized_value(normalized_row, 'descripcion', 'descripción')).strip(),
+                'observacion': observation,
+            }
+        )
+
+    for row in rows:
+        normalized = {str(key).strip().lower(): value for key, value in row.items() if key}
+        career = find_catalog_item(
+            normalized,
+            catalogs['career_by_id'],
+            catalogs['career_by_name'],
+            ['id_carrera', 'id carrera', 'career_id'],
+            ['carrera', 'nombre_carrera', 'nombre_carrera'],
+        )
+        entity = find_catalog_item(
+            normalized,
+            catalogs['entity_by_id'],
+            catalogs['entity_by_name'],
+            ['id_entidad', 'id entidad', 'entity_id'],
+            ['entidad', 'entidad_apoyo', 'nombre_entidad'],
+        )
+        nombre_convenio = str(get_normalized_value(normalized, 'nombre_convenio', 'nombre convenio', 'convenio')).strip()
+
+        missing_fields = []
+        if not career:
+            missing_fields.append('carrera no encontrada')
+        if not entity:
+            missing_fields.append('entidad no encontrada')
+        if not nombre_convenio:
+            missing_fields.append('nombre_convenio')
+        if missing_fields:
+            append_rejected(normalized, f"Campos invalidos o faltantes: {', '.join(missing_fields)}.")
+            continue
+
+        parsed_rows.append(
+            {
+                'id_carrera': career['id'],
+                'carrera': career['nombre'],
+                'id_entidad': entity['id'],
+                'entidad': entity['nombre'],
+                'nombre_convenio': nombre_convenio,
+                'fecha_inicio': normalize_date_cell(get_normalized_value(normalized, 'fecha_inicio', 'fecha inicio')),
+                'fecha_fin': normalize_date_cell(get_normalized_value(normalized, 'fecha_fin', 'fecha fin')),
+                'vigente': normalize_bool(get_normalized_value(normalized, 'vigente', 'estado') or True),
+                'descripcion': str(get_normalized_value(normalized, 'descripcion', 'descripción')).strip(),
+            }
+        )
+
+    return Response(
+        {
+            'rows': parsed_rows,
+            'rejected_rows': rejected_rows,
+            'loaded': len(parsed_rows),
+            'rejected': len(rejected_rows),
+            'skipped': len(rejected_rows),
+        },
+        status=status.HTTP_200_OK,
+    )
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def api_admin_career_bulk_preview(request):
+    _, error_response = ensure_admin_user(request)
+    if error_response:
+        return error_response
+
+    uploaded_file = request.FILES.get('archivo') or request.FILES.get('file')
+    if not uploaded_file:
+        return Response({'error': 'Debes seleccionar un archivo CSV o XLSX'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        rows = parse_career_bulk_file(uploaded_file)
+    except ValueError as exc:
+        return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+    parsed_rows, rejected_rows = parse_career_catalog_rows(rows)
+    return Response(
+        {
+            'rows': parsed_rows,
+            'rejected_rows': rejected_rows,
+            'loaded': len(parsed_rows),
+            'rejected': len(rejected_rows),
+            'skipped': len(rejected_rows),
+        },
+        status=status.HTTP_200_OK,
+    )
+
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def api_admin_career_bulk_upload(request):
     _, error_response = ensure_admin_user(request)
     if error_response:
         return error_response
+
+    preview_rows = request.data.get('rows') if hasattr(request, 'data') else None
+    if preview_rows is not None:
+        created, updated = save_career_catalog_rows(preview_rows)
+        return Response(
+            {'message': 'Cargue finalizado', 'created': created, 'updated': updated, 'skipped': 0},
+            status=status.HTTP_200_OK,
+        )
 
     uploaded_file = request.FILES.get('archivo') or request.FILES.get('file')
     if not uploaded_file:

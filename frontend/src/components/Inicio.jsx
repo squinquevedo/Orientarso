@@ -9,8 +9,11 @@ import imgExplora from '../assets/unnamed.jpg';
 import misionVideo from '../assets/mision orientarso.mp4';
 import Login from './Login';
 import Registro from './Registro';
+import { useAuthRedirect } from '../utils/useAuthRedirect';
 
 function Inicio() {
+  useAuthRedirect();
+
   const [activeCard, setActiveCard] = useState(null);
   const [isClosing, setIsClosing] = useState(false);
   const [isLoginOpen, setIsLoginOpen] = useState(false);

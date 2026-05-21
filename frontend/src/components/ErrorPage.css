@@ -1,0 +1,88 @@
+/* Contenedor general */
+.error-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  min-height: 100vh;
+  background: linear-gradient(180deg, #f8fbff 0%, #e6f0ff 100%);
+  text-align: center;
+  padding-top: 120px; /* espacio debajo del header fijo */
+  box-sizing: border-box;
+}
+
+/* Header azul */
+.error-header {
+  width: 100%;
+  background-color: #004aad;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 0;
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 10;
+}
+
+.logo-orientarso {
+  width: 120px;
+  margin-right: 10px;
+}
+
+.header-title {
+  color: white;
+  font-size: 1.6rem;
+  font-weight: 600;
+}
+
+/* Imagen del error responsiva */
+.error-image {
+  max-width: 100%;   /* ✅ ocupa todo el ancho disponible */
+  height: auto;      /* ✅ mantiene proporción */
+  animation: floatImage 4s ease-in-out infinite;
+  margin: 40px 0 20px;
+  object-fit: contain; /* ✅ evita deformaciones */
+}
+
+@keyframes floatImage {
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-15px); }
+  100% { transform: translateY(0px); }
+}
+
+/* Texto */
+h2 {
+  font-size: 2rem;
+  color: #004aad;
+  margin-bottom: 10px;
+}
+
+p {
+  font-size: 1.2rem;
+  color: #333;
+}
+
+/* Responsividad */
+@media (max-width: 768px) {
+  .logo-orientarso {
+    width: 90px;
+  }
+
+  .header-title {
+    font-size: 1.2rem;
+  }
+
+  .error-image {
+    width: 95%;   /* ✅ se adapta mejor en móviles */
+    max-width: 350px;
+  }
+
+  h2 {
+    font-size: 1.4rem;
+  }
+
+  p {
+    font-size: 1rem;
+  }
+}

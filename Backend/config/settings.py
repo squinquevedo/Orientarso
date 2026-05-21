@@ -35,13 +35,13 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'corsheaders',  # ✅ CORS para React
-    'rest_framework',  # ✅ API REST
+    'corsheaders',  # CORS para React
+    'rest_framework',  # API REST
     'Backend.modelo',
 ]
 
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware',  # ✅ Debe estar primero
+    'corsheaders.middleware.CorsMiddleware',  # Debe estar primero
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -128,7 +128,7 @@ SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SECURE = False
 SESSION_COOKIE_SAMESITE = 'Lax'
 
-# ❌ ELIMINADO: LOGIN_URL, LOGIN_REDIRECT_URL, LOGOUT_REDIRECT_URL (no necesitamos templates)
+# ELIMINADO: LOGIN_URL, LOGIN_REDIRECT_URL, LOGOUT_REDIRECT_URL 
 
 # ==========================
 # CONFIGURACIÓN DE CORS
@@ -163,7 +163,7 @@ REST_FRAMEWORK = {
         'rest_framework.authentication.SessionAuthentication',
     ],
     'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.AllowAny',  # ✅ Cambié a AllowAny para las APIs públicas
+        'rest_framework.permissions.AllowAny',  # Cambié a AllowAny para las APIs públicas
     ],
 }
  

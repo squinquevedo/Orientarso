@@ -19,11 +19,30 @@ from .models import Perfil
 
 
 ADMIN_EMAIL = 'admin@orientarso.com'
+SIMULATED_ERROR_MESSAGES = {
+    404: 'Error 404 simulado de forma controlada.',
+    408: 'Error 408 simulado de forma controlada.',
+    500: 'Error 500 simulado de forma controlada.',
+    503: 'Error 503 simulado de forma controlada.',
+}
 
 
 def dictfetchall(cursor):
     columns = [col[0] for col in cursor.description]
     return [dict(zip(columns, row)) for row in cursor.fetchall()]
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+@authentication_classes([])
+def api_simular_error(request, code):
+    message = SIMULATED_ERROR_MESSAGES.get(code)
+    if not message:
+        return Response(
+            {'error': 'Codigo de error no soportado para simulacion.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    return Response({'error': message, 'code': code}, status=code)
 
 
 def parse_json_request(request):
@@ -381,6 +400,9 @@ def api_login(request):
         if user is None:
             return Response({'error': 'Usuario no encontrado'}, status=status.HTTP_404_NOT_FOUND)
 
+        if not user.is_active:
+            return Response({'error': 'El usuario esta inactivo'}, status=status.HTTP_403_FORBIDDEN)
+
         authenticated = authenticate(request, username=user.username, password=password)
         if authenticated is None:
             return Response({'error': 'Contrasena incorrecta'}, status=status.HTTP_401_UNAUTHORIZED)
@@ -526,7 +548,8 @@ def api_csrf(request):
 
 
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])
+@authentication_classes([])
 def api_preguntas(request):
     try:
         with connection.cursor() as cursor:
@@ -548,7 +571,8 @@ def api_preguntas(request):
 
 
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])
+@authentication_classes([])
 def api_areas(request):
     try:
         with connection.cursor() as cursor:
@@ -576,9 +600,86 @@ def api_university_report_data(request):
         return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-@api_view(['POST'])
+def build_test_attempts_payload(user_id):
+    with connection.cursor() as cursor:
+        cursor.execute(
+            '''
+            SELECT id, fecha_registro, intento
+            FROM tb_test
+            WHERE id_auth_user = %s
+            ORDER BY intento DESC, fecha_registro DESC, id DESC
+            ''',
+            [user_id],
+        )
+        tests = dictfetchall(cursor)
+
+        if not tests:
+            return []
+
+        test_ids = [test['id'] for test in tests]
+        placeholders = ', '.join(['%s'] * len(test_ids))
+        cursor.execute(
+            f'''
+            SELECT
+                r.id_test,
+                p.id_area,
+                a.nom_area,
+                SUM(r.respuesta) AS score,
+                SUM(p.valor) AS max_score
+            FROM tb_respuesta r
+            INNER JOIN tb_preguntas p ON p.id = r.id_pregunta
+            LEFT JOIN tb_area a ON a.id = p.id_area
+            WHERE r.id_test IN ({placeholders})
+            GROUP BY r.id_test, p.id_area, a.nom_area
+            ORDER BY r.id_test, score DESC
+            ''',
+            test_ids,
+        )
+        rows = dictfetchall(cursor)
+
+    results_by_test = {test['id']: [] for test in tests}
+    for row in rows:
+        score = float(row['score'] or 0)
+        max_score = float(row['max_score'] or 0)
+        pct = round((score / max_score) * 100) if max_score else 0
+        results_by_test[row['id_test']].append(
+            {
+                'areaKey': str(row['id_area']),
+                'areaName': row['nom_area'] or f"Area {row['id_area']}",
+                'score': score,
+                'max': max_score,
+                'pct': pct,
+            }
+        )
+
+    attempts = []
+    for test in tests:
+        fecha = test['fecha_registro']
+        attempts.append(
+            {
+                'id_test': test['id'],
+                'intento': test['intento'],
+                'fecha_registro': fecha.isoformat() if fecha else '',
+                'resultados': sorted(
+                    results_by_test.get(test['id'], []),
+                    key=lambda item: item['pct'],
+                    reverse=True,
+                ),
+            }
+        )
+
+    return attempts
+
+
+@api_view(['GET', 'POST'])
 @permission_classes([IsAuthenticated])
 def api_test(request):
+    if request.method == 'GET':
+        try:
+            return Response({'attempts': build_test_attempts_payload(request.user.id)}, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
     try:
         data = request.data or {}
         respuestas = data.get('respuestas') or []
@@ -621,7 +722,14 @@ def api_test(request):
                         valores_con_id,
                     )
 
-        return Response({'id_test': test_id, 'intento': intento}, status=status.HTTP_201_CREATED)
+        return Response(
+            {
+                'id_test': test_id,
+                'intento': intento,
+                'attempts': build_test_attempts_payload(request.user.id),
+            },
+            status=status.HTTP_201_CREATED,
+        )
     except Exception as e:
         return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 

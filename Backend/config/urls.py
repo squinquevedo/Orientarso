@@ -47,6 +47,7 @@ urlpatterns = [
     path('api/areas/', views.api_areas, name='api_areas'),
     path('api/universidades-reporte/', views.api_university_report_data, name='api_university_report_data'),
     path('api/test/', views.api_test, name='api_test'),
+    path('api/simular-error/<int:code>/', views.api_simular_error, name='api_simular_error'),
     path('api/admin/summary/', views.api_admin_summary, name='api_admin_summary'),
     path('api/admin/users/<int:user_id>/', views.api_admin_user_detail, name='api_admin_user_detail'),
     path('api/admin/carreras/', views.api_admin_career_create, name='api_admin_career_create'),

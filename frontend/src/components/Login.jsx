@@ -6,7 +6,7 @@ import logoOrientarso from '../assets/logo.orientarso-removebg-preview.png';
 import { API_BASE } from '../config/api';
 import { useAuthRedirect } from '../utils/useAuthRedirect';
 
-function Login({ showHeader = true }) {
+function Login({ showHeader = true, onRegisterClick }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [messages, setMessages] = useState([]);
@@ -99,7 +99,13 @@ function Login({ showHeader = true }) {
           </div>
 
           <div className="auth-links">
-            <Link to="/registro">Registrarse</Link>
+            {onRegisterClick ? (
+              <button type="button" className="auth-link-button" onClick={onRegisterClick}>
+                Registrarse
+              </button>
+            ) : (
+              <Link to="/registro">Registrarse</Link>
+            )}
             <a href="#forgot-password">¿Olvidaste tu contraseña?</a>
           </div>
         </form>

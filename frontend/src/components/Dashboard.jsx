@@ -50,11 +50,45 @@ function refreshImageUrl(url) {
   return `${url}${separator}v=${Date.now()}`;
 }
 
+function formatAttemptDate(value) {
+  if (!value) return 'Sin fecha';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString('es-CO', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
 function getCookie(name) {
   const value = `; ${document.cookie}`;
   const parts = value.split(`; ${name}=`);
   if (parts.length === 2) return parts.pop().split(';').shift();
   return '';
+}
+
+function addPdfPagination(doc) {
+  const totalPages = doc.internal.getNumberOfPages();
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+
+  doc.setFontSize(9);
+  doc.setTextColor(90, 90, 90);
+
+  for (let pageNumber = 1; pageNumber <= totalPages; pageNumber += 1) {
+    doc.setPage(pageNumber);
+    doc.text(
+      `Pagina ${pageNumber} de ${totalPages}`,
+      pageWidth - 40,
+      pageHeight - 24,
+      { align: 'right' }
+    );
+  }
+
+  doc.setTextColor(0, 0, 0);
 }
 
 const universidadesData = [
@@ -125,6 +159,8 @@ function Dashboard() {
   const [guardandoTest, setGuardandoTest] = useState(false);
   const [errorTest, setErrorTest] = useState('');
   const [testCompleted, setTestCompleted] = useState(false);
+  const [testAttempts, setTestAttempts] = useState([]);
+  const [selectedAttemptId, setSelectedAttemptId] = useState(null);
   const [reportData, setReportData] = useState({ universities: [], carreras_catalogo: [] });
   const [reportModalOpen, setReportModalOpen] = useState(false);
   const [includedReportFields, setIncludedReportFields] = useState([]);
@@ -144,6 +180,20 @@ function Dashboard() {
     } catch (error) {
       setReportData({ universities: [], carreras_catalogo: [] });
       return {};
+    }
+  }, []);
+
+  const loadTestAttempts = useCallback(async () => {
+    try {
+      const response = await axios.get(`${API_BASE}/api/test/`, {
+        withCredentials: true,
+      });
+      const attempts = Array.isArray(response.data?.attempts) ? response.data.attempts : [];
+      setTestAttempts(attempts);
+      return attempts;
+    } catch (error) {
+      setTestAttempts([]);
+      return [];
     }
   }, []);
 
@@ -225,7 +275,65 @@ function Dashboard() {
     if (!isAuthenticated) return;
 
     loadReportData();
-  }, []);
+    loadTestAttempts();
+  }, [loadReportData, loadTestAttempts]);
+
+  useEffect(() => {
+    if (vistaActual !== 'resultados') return;
+    loadTestAttempts().then((attempts) => {
+      const selectedStillExists = attempts.some((attempt) => String(attempt.id_test) === String(selectedAttemptId));
+      if ((!selectedAttemptId || !selectedStillExists) && attempts.length > 0) {
+        setSelectedAttemptId(attempts[0].id_test);
+        setTestCompleted(true);
+      }
+    });
+  }, [loadTestAttempts, selectedAttemptId, vistaActual]);
+
+  useEffect(() => {
+    const isAuthenticated = localStorage.getItem('isAuthenticated') === 'true';
+    if (!isAuthenticated) return;
+
+    const pendingRaw = sessionStorage.getItem('pendingVocationalTest');
+    if (!pendingRaw) return;
+
+    const guardarTestPendiente = async () => {
+      setGuardandoTest(true);
+      setErrorTest('');
+      try {
+        const pending = JSON.parse(pendingRaw);
+        const respuestasPendientes = Array.isArray(pending?.respuestas) ? pending.respuestas : [];
+        if (respuestasPendientes.length === 0) {
+          sessionStorage.removeItem('pendingVocationalTest');
+          return;
+        }
+        await axios.get(`${API_BASE}/api/csrf/`, { withCredentials: true });
+        const csrfToken = getCookie('csrftoken');
+        const response = await axios.post(
+          `${API_BASE}/api/test/`,
+          { respuestas: respuestasPendientes },
+          {
+            withCredentials: true,
+            headers: {
+              'X-CSRFToken': csrfToken,
+            },
+          }
+        );
+        sessionStorage.removeItem('pendingVocationalTest');
+        const attempts = Array.isArray(response.data?.attempts) ? response.data.attempts : await loadTestAttempts();
+        setTestAttempts(attempts);
+        setSelectedAttemptId(response.data?.id_test || attempts[0]?.id_test || null);
+        setTestCompleted(true);
+        await loadReportData();
+        setVistaActual('resultados');
+      } catch (error) {
+        setErrorTest(error.response?.data?.error || 'No se pudo guardar el test pendiente.');
+      } finally {
+        setGuardandoTest(false);
+      }
+    };
+
+    guardarTestPendiente();
+  }, [loadReportData, loadTestAttempts]);
 
   useEffect(() => {
     const isAuthenticated = localStorage.getItem('isAuthenticated') === 'true';
@@ -317,17 +425,27 @@ function Dashboard() {
       .sort((a, b) => b.pct - a.pct);
   }, [maxPorArea, puntajePorArea]);
 
+  const selectedAttempt = useMemo(() => {
+    if (!selectedAttemptId) return null;
+    return testAttempts.find((attempt) => String(attempt.id_test) === String(selectedAttemptId)) || null;
+  }, [selectedAttemptId, testAttempts]);
+
+  const displayedResults = selectedAttempt?.resultados?.length
+    ? selectedAttempt.resultados
+    : resultados;
+
   const affinityByArea = useMemo(() => {
-    return resultados.reduce((acc, resultado) => {
+    return displayedResults.reduce((acc, resultado) => {
       acc[String(resultado.areaKey)] = resultado.pct;
       return acc;
     }, {});
-  }, [resultados]);
+  }, [displayedResults]);
 
-  const topResultAreaKey = resultados[0]?.areaKey ? String(resultados[0].areaKey) : '';
+  const topResultAreaKey = displayedResults[0]?.areaKey ? String(displayedResults[0].areaKey) : '';
+  const hasVisibleResults = Boolean(selectedAttempt) || testCompleted;
 
   const recommendedCareers = useMemo(() => {
-    if (!testCompleted || !topResultAreaKey) return [];
+    if (!hasVisibleResults || !topResultAreaKey) return [];
     return (reportData.carreras_catalogo || [])
       .filter((career) => career.activa !== false)
       .filter((career) => String(career.id_area) === topResultAreaKey)
@@ -337,10 +455,10 @@ function Dashboard() {
         areaName: areasMap[String(career.id_area)] || career.area || `Area ${career.id_area}`,
       }))
       .sort((a, b) => b.affinity - a.affinity || String(a.nombre).localeCompare(String(b.nombre)));
-  }, [affinityByArea, areasMap, reportData.carreras_catalogo, testCompleted, topResultAreaKey]);
+  }, [affinityByArea, areasMap, hasVisibleResults, reportData.carreras_catalogo, topResultAreaKey]);
 
   const reportRows = useMemo(() => {
-    if (!testCompleted) return [];
+    if (!hasVisibleResults) return [];
     const rows = [];
 
     recommendedCareers.forEach((normalCareer) => {
@@ -391,7 +509,7 @@ function Dashboard() {
     });
 
     return rows.sort((a, b) => b.affinity - a.affinity);
-  }, [recommendedCareers, reportData.universities, testCompleted]);
+  }, [hasVisibleResults, recommendedCareers, reportData.universities]);
 
   const allUniversityReportRows = useMemo(() => {
     const rows = [];
@@ -459,7 +577,7 @@ function Dashboard() {
           respuesta: Number(respuestas[id_pregunta]) || 0,
         })),
       };
-      await axios.post(
+      const response = await axios.post(
         `${API_BASE}/api/test/`,
         payload,
         {
@@ -469,6 +587,9 @@ function Dashboard() {
           },
         }
       );
+      const attempts = Array.isArray(response.data?.attempts) ? response.data.attempts : await loadTestAttempts();
+      setTestAttempts(attempts);
+      setSelectedAttemptId(response.data?.id_test || attempts[0]?.id_test || null);
       await loadReportData();
       setTestCompleted(true);
       setVistaActual('resultados');
@@ -533,8 +654,10 @@ function Dashboard() {
       body: rows.map((row) => selectedFields.map((field) => row[field.id] || '-')),
       styles: { fontSize: 8, cellPadding: 5, overflow: 'linebreak' },
       headStyles: { fillColor: [37, 99, 235], textColor: 255 },
+      margin: { bottom: 46 },
     });
 
+    addPdfPagination(doc);
     doc.save('reporte_recomendaciones.pdf');
     setReportModalOpen(false);
   };
@@ -635,22 +758,76 @@ function Dashboard() {
           <div className="resultados-container">
             <h2>Tus Resultados</h2>
             <div className="resultado-card">
+              <div className="resultados-header-row">
+                <h3>Intentos realizados</h3>
+                <button className="btn btn-primary" type="button" onClick={() => setVistaActual('prueba')}>
+                  Realizar otro test
+                </button>
+              </div>
+              {testAttempts.length === 0 ? (
+                <div className="resultado-empty">Aun no has realizado ningun test.</div>
+              ) : (
+                <div className="attempts-table-wrap">
+                  <table className="attempts-table">
+                    <thead>
+                      <tr>
+                        <th>Intento</th>
+                        <th>Fecha</th>
+                        <th>Area principal</th>
+                        <th>Accion</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {testAttempts.map((attempt) => {
+                        const topArea = attempt.resultados?.[0];
+                        const active = String(selectedAttemptId) === String(attempt.id_test);
+                        return (
+                          <tr key={attempt.id_test} className={active ? 'active' : ''}>
+                            <td>Intento {attempt.intento}</td>
+                            <td>{formatAttemptDate(attempt.fecha_registro)}</td>
+                            <td>
+                              {topArea ? `${topArea.areaName || areasMap[topArea.areaKey] || `Area ${topArea.areaKey}`} - ${topArea.pct}%` : 'Sin resultados'}
+                            </td>
+                            <td>
+                              <button
+                                className="attempt-link"
+                                type="button"
+                                onClick={() => {
+                                  setSelectedAttemptId(attempt.id_test);
+                                  setTestCompleted(true);
+                                }}
+                              >
+                                Ver detalle
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+            {!selectedAttempt && testAttempts.length > 0 && (
+              <div className="resultado-empty">Selecciona un intento para ver el detalle de tus resultados.</div>
+            )}
+            <div className="resultado-card">
               <h3>Areas de mayor afinidad</h3>
-              {resultados.length === 0 && (
+              {displayedResults.length === 0 && (
                 <div className="resultado-empty">Aun no hay resultados para mostrar.</div>
               )}
-              {resultados.map((resultado) => (
+              {displayedResults.map((resultado) => (
                 <div key={resultado.areaKey} className="barra-progreso">
                   <div
                     className="barra-fill"
                     style={{ width: `${resultado.pct}%` }}
                   >
-                    {areasMap[resultado.areaKey] || `Area ${resultado.areaKey}`} - {resultado.pct}% ({Math.round(resultado.score)}/{Math.round(resultado.max)})
+                    {resultado.areaName || areasMap[resultado.areaKey] || `Area ${resultado.areaKey}`} - {resultado.pct}% ({Math.round(resultado.score)}/{Math.round(resultado.max)})
                   </div>
                 </div>
               ))}
             </div>
-            {testCompleted && (
+            {hasVisibleResults && (
               <div className="recomendaciones">
                 <div className="recomendaciones-header">
                   <h3>Carreras recomendadas</h3>

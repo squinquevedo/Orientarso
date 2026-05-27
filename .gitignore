@@ -1,2 +1,35 @@
 media/user_photos/*
 !media/user_photos/.gitkeep
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pydeps/
+venv/
+.venv/
+
+# Django/local data
+db.sqlite3
+*.sqlite3
+
+# Logs
+*.log
+logs/
+
+# Frontend build/dependencies
+node_modules/
+dist/
+dist-ssr/
+
+# Local editor/assistant config
+.vscode/
+.continue/
+%USERPROFILE%/
+
+# Accidental local artifacts
+/FETCH_HEAD
+/main
+/version
+/ej.txt
+/package-lock.json

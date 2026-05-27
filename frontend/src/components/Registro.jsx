@@ -5,7 +5,7 @@ import './Auth.css';
 import logoOrientarso from '../assets/logo.orientarso-removebg-preview.png';
 import { API_BASE } from '../config/api';
 
-function Registro({ showHeader = true }) {
+function Registro({ showHeader = true, onBack, onRegistered }) {
   const [formData, setFormData] = useState({
     tipo_documento: '',
     numero_documento: '',
@@ -53,7 +53,11 @@ function Registro({ showHeader = true }) {
       ]);
 
       setTimeout(() => {
-        navigate('/login');
+        if (onRegistered) {
+          onRegistered();
+        } else {
+          navigate('/login');
+        }
       }, 1200);
     } catch (error) {
       const errorMsg = error.response?.data?.error || 'Error al registrarse';
@@ -173,9 +177,15 @@ function Registro({ showHeader = true }) {
             <button type="submit" className="btn btn-success" disabled={loading}>
               {loading ? 'Registrando...' : 'Registrar'}
             </button>
-            <Link to="/login" className="btn btn-secondary">
-              Regresar
-            </Link>
+            {onBack ? (
+              <button type="button" className="btn btn-secondary" onClick={onBack}>
+                Regresar
+              </button>
+            ) : (
+              <Link to="/" className="btn btn-secondary">
+                Regresar
+              </Link>
+            )}
           </div>
         </form>
         </div>

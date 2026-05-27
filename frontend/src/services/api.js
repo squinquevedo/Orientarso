@@ -17,6 +17,20 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const status = error.response?.status;
+    const visibleErrors = [404, 408, 500, 503];
+
+    if (visibleErrors.includes(status) && !window.location.pathname.startsWith('/error/')) {
+      window.location.assign(`/error/${status}`);
+    }
+
+    return Promise.reject(error);
+  }
+);
+
 export const login = (username, password) =>
   api.post('/login/', { username, password });
 

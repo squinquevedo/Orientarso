@@ -8,6 +8,7 @@ __pycache__/
 .pydeps/
 venv/
 .venv/
+entorno_desarrollo/
 
 # Django/local data
 db.sqlite3

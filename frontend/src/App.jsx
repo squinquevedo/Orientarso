@@ -17,8 +17,15 @@ function App() {
         <Route path="/registro" element={<Registro />} />
         <Route path="/home" element={<Dashboard />} />
         <Route path="/dashboard_admin" element={<DashboardAdmin />} />
-        <Route path="/error/:code" element={<ErrorPage />} />
-        <Route path="*" element={<ErrorPage code="404" />} />
+
+        /* Rutas de prueba de errores */
+        <Route path="/error404" element={<ErrorPage code={404} />} />
+        <Route path="/error408" element={<ErrorPage code={408} />} />
+        <Route path="/error500" element={<ErrorPage code={500} />} />
+        <Route path="/error503" element={<ErrorPage code={503} />} />
+
+        /* Catch-all para rutas inexistentes */
+        <Route path="*" element={<ErrorPage code={404} />} />
       </Routes>
     </Router>
   );

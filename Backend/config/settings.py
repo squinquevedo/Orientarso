@@ -17,17 +17,19 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
+# SECRET_KEY: Sirve para cifrar datos sensibles como sesiones, tokens CSRF y cookies de autenticación, asegurando la seguridad de la aplicación.
 SECRET_KEY = 'django-insecure-+fwh0flff1@i6pcdj!zl6-@1ce^!)o_u)#n*5pw^(=yf$_1)!$'
 
-# SECURITY WARNING: don't run with debug turned on in production!
+# DEBUG: Sirve para activar el modo de depuración, mostrando errores detallados y páginas de error útiles durante el desarrollo.
 DEBUG = True
 
+# ALLOWED_HOSTS: Sirve para especificar los hosts permitidos desde los que se pueden hacer solicitudes al servidor, previniendo ataques de host header.
 ALLOWED_HOSTS = ['*']  # Para desarrollo
 
 
 # Application definition
 
+# INSTALLED_APPS: Sirve para listar todas las aplicaciones Django instaladas, permitiendo que el framework reconozca modelos, vistas y URLs de estas apps.
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -40,6 +42,7 @@ INSTALLED_APPS = [
     'Backend.modelo',
 ]
 
+# MIDDLEWARE: Sirve para definir una lista de clases middleware que procesan cada solicitud HTTP entrante y respuesta saliente, añadiendo funcionalidades como CORS, sesiones y seguridad.
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',  # Debe estar primero
     'django.middleware.security.SecurityMiddleware',
@@ -51,8 +54,10 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
+# ROOT_URLCONF: Sirve para especificar el módulo que contiene las configuraciones de URLs raíz del proyecto, donde se definen las rutas principales.
 ROOT_URLCONF = 'Backend.config.urls'
 
+# TEMPLATES: Sirve para configurar los motores de plantillas que Django usa para renderizar páginas HTML dinámicas.
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
@@ -69,11 +74,10 @@ TEMPLATES = [
     },
 ]
 
+# WSGI_APPLICATION: Sirve para especificar la aplicación WSGI que se usa para desplegar el proyecto en servidores compatibles con WSGI.
 WSGI_APPLICATION = 'Backend.config.wsgi.application'
 
-# Database
-# https://docs.djangoproject.com/en/6.0/ref/settings/#databases
-
+# DATABASES: Sirve para configurar las bases de datos que usa el proyecto, definiendo el motor, nombre, usuario, contraseña y otros parámetros de conexión.
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
@@ -85,9 +89,7 @@ DATABASES = {
     }
 }
 
-# Password validation
-# https://docs.djangoproject.com/en/6.0/ref/settings/#auth-password-validators
-
+# AUTH_PASSWORD_VALIDATORS: Sirve para definir validadores que verifican la fortaleza de las contraseñas de los usuarios durante el registro y cambios.
 AUTH_PASSWORD_VALIDATORS = [
     {
         'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
@@ -103,18 +105,22 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-# Internationalization
-# https://docs.djangoproject.com/en/6.0/topics/i18n/
-
+# LANGUAGE_CODE: Sirve para establecer el idioma predeterminado de la aplicación.
+# TIME_ZONE: Sirve para definir la zona horaria usada por el proyecto.
+# USE_I18N: Sirve para activar la internacionalización, permitiendo traducciones.
+# USE_TZ: Sirve para activar el manejo de zonas horarias en fechas y horas.
 LANGUAGE_CODE = 'es-es'
 TIME_ZONE = 'America/Bogota'
 USE_I18N = True
 USE_TZ = True
 
-# Static files (CSS, JavaScript, Images)
+# STATIC_URL: Sirve para definir la URL base para servir archivos estáticos como CSS y JavaScript.
+# STATIC_ROOT: Sirve para especificar el directorio donde se recopilan los archivos estáticos para producción.
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
+# MEDIA_URL: Sirve para definir la URL base para servir archivos multimedia subidos por usuarios.
+# MEDIA_ROOT: Sirve para especificar el directorio donde se almacenan los archivos multimedia.
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
@@ -122,6 +128,11 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # CONFIGURACIÓN DE SESIÓN
 # ==========================
 
+# SESSION_COOKIE_AGE: Sirve para definir la duración en segundos de las sesiones de usuario.
+# SESSION_EXPIRE_AT_BROWSER_CLOSE: Sirve para determinar si la sesión expira al cerrar el navegador.
+# SESSION_COOKIE_HTTPONLY: Sirve para prevenir acceso a la cookie de sesión desde JavaScript.
+# SESSION_COOKIE_SECURE: Sirve para enviar la cookie solo sobre HTTPS.
+# SESSION_COOKIE_SAMESITE: Sirve para controlar cuándo se envía la cookie en solicitudes cross-site.
 SESSION_COOKIE_AGE = 3600
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 SESSION_COOKIE_HTTPONLY = True
@@ -134,6 +145,8 @@ SESSION_COOKIE_SAMESITE = 'Lax'
 # CONFIGURACIÓN DE CORS
 # ==========================
 
+# CORS_ALLOWED_ORIGINS: Sirve para listar los orígenes permitidos para solicitudes CORS desde el frontend.
+# CORS_ALLOW_CREDENTIALS: Sirve para permitir el envío de credenciales (cookies, headers de autorización) en solicitudes CORS.
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",   # Vite (React)
     "http://localhost:3000",   # Alternativo
@@ -147,6 +160,7 @@ CORS_ALLOW_CREDENTIALS = True
 # CSRF TRUSTED ORIGINS
 # ==========================
 
+# CSRF_TRUSTED_ORIGINS: Sirve para listar orígenes confiables para tokens CSRF, permitiendo solicitudes POST desde esos orígenes.
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:5173",
     "http://localhost:3000",
@@ -158,6 +172,7 @@ CSRF_TRUSTED_ORIGINS = [
 # CONFIGURACIÓN REST FRAMEWORK
 # ==========================
 
+# REST_FRAMEWORK: Sirve para configurar Django REST Framework, definiendo clases de autenticación y permisos predeterminadas para las APIs.
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework.authentication.SessionAuthentication',
@@ -166,5 +181,3 @@ REST_FRAMEWORK = {
         'rest_framework.permissions.AllowAny',  # Cambié a AllowAny para las APIs públicas
     ],
 }
- 
-

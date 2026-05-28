@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import './Inicio.css';
 import heroVideo from '../assets/Video_Generado_con_Orientación.mp4';
@@ -22,6 +23,8 @@ const OPCIONES = [
 
 function Inicio() {
   useAuthRedirect();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   const [activeCard, setActiveCard] = useState(null);
   const [isClosing, setIsClosing] = useState(false);
@@ -62,6 +65,44 @@ function Inicio() {
   const toggleMenu = () => setIsMenuOpen((prev) => !prev);
   const closeMenu = () => setIsMenuOpen(false);
   const closePublicTest = () => setShowPublicTest(false);
+
+  useEffect(() => {
+    if (searchParams.get('login') === '1') {
+      setIsSignupOpen(false);
+      setIsLoginOpen(true);
+      navigate('/', { replace: true });
+    }
+  }, [navigate, searchParams]);
+
+  useEffect(() => {
+    const handleStorage = (event) => {
+      if (event.key === 'orientarso:open-login') {
+        setIsSignupOpen(false);
+        setShowPublicTest(false);
+        setActiveCard(null);
+        setIsLoginOpen(true);
+      }
+
+      if (event.key === 'orientarso:verification-error-back') {
+        setIsLoginOpen(false);
+        setIsSignupOpen(false);
+        setShowPublicTest(false);
+        setActiveCard(null);
+        navigate('/', { replace: true });
+      }
+
+      if (event.key === 'orientarso:login-success') {
+        setIsLoginOpen(false);
+        setIsSignupOpen(false);
+        setShowPublicTest(false);
+        setActiveCard(null);
+      }
+    };
+
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, [navigate]);
+
   const startPublicTest = async () => {
     setShowPublicTest(true);
     setErrorTest('');

@@ -1,11 +1,18 @@
 import json
 import csv
+import re
+import secrets
 from pathlib import Path
 from io import BytesIO, StringIO
+from types import SimpleNamespace
+from urllib.parse import urlencode
 
 from django.conf import settings
+from django.core.cache import cache
 from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth.hashers import make_password
 from django.contrib.auth.models import User
+from django.core.mail import send_mail
 from django.db import connection, transaction
 from django.middleware.csrf import get_token
 from django.utils import timezone
@@ -15,16 +22,270 @@ from rest_framework.decorators import api_view, authentication_classes, permissi
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
-from .models import Perfil
+from .models import EmailVerificationToken, PasswordResetToken, Perfil
 
 
 ADMIN_EMAIL = 'admin@orientarso.com'
+DOCUMENT_LENGTHS = {
+    'CC': 10,
+    'TI': 11,
+    'CE': 7,
+    'PAS': 9,
+}
+PENDING_REGISTRATION_TTL = 180
 SIMULATED_ERROR_MESSAGES = {
     404: 'Error 404 simulado de forma controlada.',
     408: 'Error 408 simulado de forma controlada.',
     500: 'Error 500 simulado de forma controlada.',
     503: 'Error 503 simulado de forma controlada.',
 }
+
+
+def pending_registration_token_key(token):
+    return f'pending_registration:token:{token}'
+
+
+def pending_registration_email_key(email):
+    return f'pending_registration:email:{email.lower()}'
+
+
+def pending_registration_document_key(document):
+    return f'pending_registration:document:{document}'
+
+
+def verified_registration_token_key(token):
+    return f'pending_registration:verified:{token}'
+
+
+def clear_pending_registration(data):
+    if not data:
+        return
+    cache.delete(pending_registration_token_key(data.get('token', '')))
+    cache.delete(pending_registration_email_key(data.get('email', '')))
+    cache.delete(pending_registration_document_key(data.get('numero_documento', '')))
+
+
+def save_pending_registration(data):
+    token = secrets.token_urlsafe(48)
+    pending_data = {**data, 'token': token}
+    previous_by_email = cache.get(pending_registration_email_key(data['email']))
+    previous_by_document = cache.get(pending_registration_document_key(data['numero_documento']))
+    clear_pending_registration(previous_by_email)
+    clear_pending_registration(previous_by_document)
+    cache.set(pending_registration_token_key(token), pending_data, PENDING_REGISTRATION_TTL)
+    cache.set(pending_registration_email_key(data['email']), pending_data, PENDING_REGISTRATION_TTL)
+    cache.set(pending_registration_document_key(data['numero_documento']), pending_data, PENDING_REGISTRATION_TTL)
+    return pending_data
+
+
+def build_verification_payload(user, profile=None):
+    profile = profile or get_or_create_profile(user)
+    payload = build_user_payload(user, profile)
+    payload['message'] = 'Verificacion exitosa'
+    return payload
+
+
+def send_verification_email(user, token):
+    verify_link = f'http://localhost:5173/verificar-email?token={token}'
+    subject = 'Confirma tu correo - Orientarso'
+    nombre = getattr(user, 'first_name', '') or getattr(user, 'nombre_completo', '') or 'Usuario'
+
+    plain_message = f"""
+Hola {nombre},
+
+Gracias por registrarte en Orientarso.
+
+Para activar tu cuenta, haz clic en el siguiente enlace:
+{verify_link}
+
+Este enlace expira en 3 minutos.
+
+Si no creaste esta cuenta, ignora este mensaje.
+
+Saludos,
+El equipo de Orientarso
+    """.strip()
+
+    html_message = f"""
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin:0;padding:0;background-color:#f4f7fc;font-family:'Segoe UI',Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f7fc;padding:40px 16px;">
+    <tr>
+      <td align="center">
+        <table width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background-color:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 8px 30px rgba(0,0,0,0.08);">
+          <tr>
+            <td style="background:linear-gradient(135deg,#2563EB,#1d4ed8);padding:32px 40px;text-align:center;">
+              <h1 style="margin:0;color:#ffffff;font-size:24px;font-weight:700;letter-spacing:0.5px;">
+                Orientarso
+              </h1>
+              <p style="margin:6px 0 0;color:#bfdbfe;font-size:14px;">
+                Orientación vocacional
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:40px 40px 32px;">
+              <h2 style="margin:0 0 8px;color:#1F2937;font-size:20px;font-weight:600;">
+                ¡Hola, {nombre}!
+              </h2>
+              <p style="margin:0 0 20px;color:#4b5563;font-size:15px;line-height:1.6;">
+                Gracias por registrarte en <strong>Orientarso</strong>. 
+                Para comenzar a descubrir tu vocación, solo falta un paso.
+              </p>
+              <p style="margin:0 0 24px;color:#4b5563;font-size:15px;line-height:1.6;">
+                Confirma tu correo electrónico haciendo clic en el botón:
+              </p>
+              <table cellpadding="0" cellspacing="0" style="margin:0 auto 32px;">
+                <tr>
+                  <td align="center" style="background:linear-gradient(135deg,#2563EB,#1d4ed8);border-radius:8px;">
+                    <a href="{verify_link}"
+                       style="display:inline-block;padding:14px 40px;color:#ffffff;font-size:16px;font-weight:600;text-decoration:none;border-radius:8px;">
+                      Verificar
+                    </a>
+                  </td>
+                </tr>
+              </table>
+              <p style="margin:0 0 16px;color:#6b7280;font-size:13px;line-height:1.5;text-align:center;">
+                O copia este enlace en tu navegador:
+              </p>
+              <p style="margin:0 0 24px;padding:12px 16px;background-color:#f3f4f6;border-radius:8px;font-size:12px;color:#374151;word-break:break-all;text-align:center;">
+                {verify_link}
+              </p>
+              <hr style="border:none;border-top:1px solid #e5e7eb;margin:0 0 20px;">
+              <p style="margin:0;color:#9ca3af;font-size:12px;line-height:1.5;text-align:center;">
+                Este enlace expira en <strong>3 minutos</strong>.<br>
+                Si no creaste esta cuenta, ignora este mensaje.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="background-color:#f9fafb;padding:20px 40px;text-align:center;border-top:1px solid #e5e7eb;">
+              <p style="margin:0;color:#9ca3af;font-size:12px;">
+                &copy; 2026 Orientarso &mdash; Todos los derechos reservados.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+    """.strip()
+
+    send_mail(
+        subject=subject,
+        message=plain_message,
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        recipient_list=[user.email],
+        html_message=html_message,
+        fail_silently=False,
+    )
+
+    print(f"\n{'='*60}")
+    print(f"  EMAIL DE VERIFICACION ENVIADO A: {user.email}")
+    print(f"  Token: {token}")
+    print(f"  Link:  {verify_link}")
+    print(f"{'='*60}\n")
+
+
+def send_password_reset_email(user, token):
+    subject = 'Codigo de recuperacion - Orientarso'
+    nombre = user.first_name or 'Usuario'
+
+    plain_message = f"""
+Hola {nombre},
+
+Has solicitado restablecer tu contrasena en Orientarso.
+
+Tu codigo de verificacion es: {token}
+
+Este codigo expira en 3 minutos.
+
+Si no solicitaste este cambio, ignora este mensaje.
+
+Saludos,
+El equipo de Orientarso
+    """.strip()
+
+    html_message = f"""
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin:0;padding:0;background-color:#f4f7fc;font-family:'Segoe UI',Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f7fc;padding:40px 16px;">
+    <tr>
+      <td align="center">
+        <table width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background-color:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 8px 30px rgba(0,0,0,0.08);">
+          <tr>
+            <td style="background:linear-gradient(135deg,#2563EB,#1d4ed8);padding:32px 40px;text-align:center;">
+              <h1 style="margin:0;color:#ffffff;font-size:24px;font-weight:700;letter-spacing:0.5px;">
+                Orientarso
+              </h1>
+              <p style="margin:6px 0 0;color:#bfdbfe;font-size:14px;">
+                Recuperacion de contrasena
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:40px 40px 32px;">
+              <h2 style="margin:0 0 8px;color:#1F2937;font-size:20px;font-weight:600;">
+                ¡Hola, {nombre}!
+              </h2>
+              <p style="margin:0 0 20px;color:#4b5563;font-size:15px;line-height:1.6;">
+                Recibimos una solicitud para restablecer tu contrasena en <strong>Orientarso</strong>.
+              </p>
+              <p style="margin:0 0 16px;color:#4b5563;font-size:15px;line-height:1.6;">
+                Utiliza el siguiente codigo para restablecer tu contrasena:
+              </p>
+              <div style="text-align:center;margin:24px 0;padding:20px;background-color:#f3f4f6;border-radius:12px;letter-spacing:8px;font-size:32px;font-weight:700;color:#2563EB;">
+                {token}
+              </div>
+              <p style="margin:0 0 8px;color:#6b7280;font-size:13px;line-height:1.5;text-align:center;">
+                Este codigo expira en <strong>3 minutos</strong>.
+              </p>
+              <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0 20px;">
+              <p style="margin:0;color:#9ca3af;font-size:12px;line-height:1.5;text-align:center;">
+                Si no solicitaste este cambio, ignora este mensaje.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="background-color:#f9fafb;padding:20px 40px;text-align:center;border-top:1px solid #e5e7eb;">
+              <p style="margin:0;color:#9ca3af;font-size:12px;">
+                &copy; 2026 Orientarso &mdash; Todos los derechos reservados.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+    """.strip()
+
+    send_mail(
+        subject=subject,
+        message=plain_message,
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        recipient_list=[user.email],
+        html_message=html_message,
+        fail_silently=False,
+    )
+
+    print(f"\n{'='*60}")
+    print(f"  EMAIL DE RECUPERACION ENVIADO A: {user.email}")
+    print(f"  Codigo: {token}")
+    print(f"{'='*60}\n")
 
 
 def dictfetchall(cursor):
@@ -385,6 +646,72 @@ def sync_university_relations(cursor, university_id, payload):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 @authentication_classes([])
+def api_password_reset_request(request):
+    try:
+        data = json.loads(request.body)
+        email = (data.get('email') or '').strip().lower()
+        if not email:
+            return Response({'error': 'Email requerido'}, status=status.HTTP_400_BAD_REQUEST)
+
+        user = User.objects.filter(email__iexact=email).first()
+        if not user:
+            return Response({'message': 'Si el correo existe, recibiras un codigo de recuperacion.'}, status=status.HTTP_200_OK)
+
+        token = PasswordResetToken.generate_for_user(user)
+        send_password_reset_email(user, token)
+
+        return Response({'message': 'Codigo de recuperacion enviado a tu correo.'}, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+@csrf_exempt
+@api_view(['POST'])
+@permission_classes([AllowAny])
+@authentication_classes([])
+def api_password_reset_verify(request):
+    try:
+        data = json.loads(request.body)
+        email = (data.get('email') or '').strip().lower()
+        code = (data.get('code') or '').strip()
+        new_password = (data.get('new_password') or '').strip()
+
+        if not email or not code:
+            return Response({'error': 'Email y codigo requeridos'}, status=status.HTTP_400_BAD_REQUEST)
+
+        user = User.objects.filter(email__iexact=email).first()
+        if not user:
+            return Response({'error': 'Codigo invalido o expirado'}, status=status.HTTP_400_BAD_REQUEST)
+
+        rt = PasswordResetToken.objects.filter(user=user, token=code, used=False).first()
+        if not rt:
+            return Response({'error': 'Codigo incorrecto'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if rt.is_expired():
+            rt.used = True
+            rt.save()
+            return Response({'error': 'Codigo expirado'}, status=status.HTTP_410_GONE)
+
+        if not new_password:
+            return Response({'message': 'Codigo verificado correctamente.'}, status=status.HTTP_200_OK)
+
+        if len(new_password) < 8 or len(new_password) > 16:
+            return Response({'error': 'La contrasena debe tener entre 8 y 16 caracteres.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        user.set_password(new_password)
+        user.save()
+        rt.used = True
+        rt.save()
+
+        return Response({'message': 'Contrasena actualizada exitosamente.'}, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+@csrf_exempt
+@api_view(['POST'])
+@permission_classes([AllowAny])
+@authentication_classes([])
 def api_login(request):
     try:
         data = json.loads(request.body)
@@ -401,7 +728,14 @@ def api_login(request):
             return Response({'error': 'Usuario no encontrado'}, status=status.HTTP_404_NOT_FOUND)
 
         if not user.is_active:
-            return Response({'error': 'El usuario esta inactivo'}, status=status.HTTP_403_FORBIDDEN)
+            return Response(
+                {
+                    'error': 'Cuenta no verificada. Revisa tu correo para activar tu cuenta.',
+                    'requires_verification': True,
+                    'email': user.email,
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
 
         authenticated = authenticate(request, username=user.username, password=password)
         if authenticated is None:
@@ -423,7 +757,6 @@ def api_login(request):
 def api_registro(request):
     try:
         data = json.loads(request.body)
-
         tipo_documento = (data.get('tipo_documento') or '').strip()
         numero_documento = (data.get('numero_documento') or '').strip()
         nombre_completo = (data.get('nombre_completo') or '').strip()
@@ -434,8 +767,30 @@ def api_registro(request):
         if not all([tipo_documento, numero_documento, nombre_completo, email, password1, password2]):
             return Response({'error': 'Todos los campos son requeridos'}, status=status.HTTP_400_BAD_REQUEST)
 
+        max_document_length = DOCUMENT_LENGTHS.get(tipo_documento)
+        if not max_document_length:
+            return Response({'error': 'Tipo de documento no valido'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not numero_documento.isdigit():
+            return Response({'error': 'El numero de documento solo puede contener numeros'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if len(numero_documento) > max_document_length:
+            return Response(
+                {'error': f'El numero de documento no puede superar {max_document_length} digitos'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         if password1 != password2:
             return Response({'error': 'Las contraseñas no coinciden'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if len(password1) < 8 or len(password1) > 16:
+            return Response({'error': 'La contrasena debe tener entre 8 y 16 caracteres.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not re.search(r'[A-Z]', password1):
+            return Response({'error': 'La contrasena debe contener al menos una mayuscula.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not re.search(r'[^a-zA-Z0-9]', password1):
+            return Response({'error': 'La contrasena debe contener al menos un caracter especial.'}, status=status.HTTP_400_BAD_REQUEST)
 
         if User.objects.filter(username__iexact=numero_documento).exists():
             return Response({'error': 'El numero de documento ya esta registrado'}, status=status.HTTP_400_BAD_REQUEST)
@@ -444,27 +799,44 @@ def api_registro(request):
             return Response({'error': 'El email ya está registrado'}, status=status.HTTP_400_BAD_REQUEST)
 
         with transaction.atomic():
-            user = User.objects.create_user(
-                username=numero_documento,
-                email=email,
-                password=password1,
-                first_name=nombre_completo,
-            )
-            profile = get_or_create_profile(user, tipo_documento=tipo_documento)
-            profile.tipo_documento = tipo_documento
-            if (user.email or '').lower() != ADMIN_EMAIL:
-                profile.rol = Perfil.ROL_ESTUDIANTE
-            profile.save(update_fields=['tipo_documento', 'rol'])
+            es_admin = email.lower() == ADMIN_EMAIL
+            if es_admin:
+                user = User.objects.create_user(
+                    username=numero_documento,
+                    email=email,
+                    password=password1,
+                    first_name=nombre_completo,
+                    is_active=True,
+                )
+                profile = get_or_create_profile(user, tipo_documento=tipo_documento)
+                profile.tipo_documento = tipo_documento
+                profile.save(update_fields=['tipo_documento', 'rol'])
+            else:
+                pending = save_pending_registration({
+                    'tipo_documento': tipo_documento,
+                    'numero_documento': numero_documento,
+                    'nombre_completo': nombre_completo,
+                    'email': email,
+                    'password': make_password(password1),
+                })
+                try:
+                    send_verification_email(SimpleNamespace(**pending), pending['token'])
+                except Exception:
+                    clear_pending_registration(pending)
+                    raise
+                user = None
+                profile = None
 
-        return Response(
-            {
-                'message': 'Usuario registrado exitosamente',
-                'username': user.username,
-                'email': user.email,
-                'rol': profile.rol,
-            },
-            status=status.HTTP_201_CREATED,
-        )
+        payload = {
+            'message': 'Te enviamos un correo de verificacion. Tu cuenta se creara cuando confirmes el enlace.'
+                       if not es_admin else
+                       'Usuario administrador creado exitosamente.',
+            'username': user.username if user else numero_documento,
+            'email': email,
+            'rol': profile.rol if profile else Perfil.ROL_ESTUDIANTE,
+            'requires_verification': not es_admin,
+        }
+        return Response(payload, status=status.HTTP_201_CREATED)
     except Exception as e:
         return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -545,6 +917,119 @@ def api_user_profile_photo(request):
 @authentication_classes([])
 def api_csrf(request):
     return Response({'csrfToken': get_token(request)}, status=status.HTTP_200_OK)
+
+
+@csrf_exempt
+@api_view(['GET', 'POST'])
+@permission_classes([AllowAny])
+@authentication_classes([])
+def api_verificar_email(request):
+    if request.method == 'GET':
+        token = request.query_params.get('token', '').strip()
+        if not token:
+            return Response({'error': 'No se pudo verificar la cuenta, intenta de nuevo.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        pending = cache.get(pending_registration_token_key(token))
+        verified_user_id = cache.get(verified_registration_token_key(token))
+        if verified_user_id:
+            user = User.objects.filter(id=verified_user_id, is_active=True).first()
+            if user:
+                return Response(build_verification_payload(user), status=status.HTTP_200_OK)
+
+        if pending:
+            existing_user = User.objects.filter(
+                username__iexact=pending['numero_documento'],
+                email__iexact=pending['email'],
+                is_active=True,
+            ).first()
+            if existing_user:
+                clear_pending_registration(pending)
+                cache.set(verified_registration_token_key(token), existing_user.id, 600)
+                return Response(build_verification_payload(existing_user), status=status.HTTP_200_OK)
+
+            if User.objects.filter(username__iexact=pending['numero_documento']).exists():
+                clear_pending_registration(pending)
+                return Response({'error': 'El numero de documento ya esta registrado'}, status=status.HTTP_400_BAD_REQUEST)
+
+            if User.objects.filter(email__iexact=pending['email']).exists():
+                clear_pending_registration(pending)
+                return Response({'error': 'El email ya esta registrado'}, status=status.HTTP_400_BAD_REQUEST)
+
+            with transaction.atomic():
+                user = User(
+                    username=pending['numero_documento'],
+                    email=pending['email'],
+                    first_name=pending['nombre_completo'],
+                    is_active=True,
+                )
+                user.password = pending['password']
+                user.save()
+                profile = get_or_create_profile(user, tipo_documento=pending['tipo_documento'])
+                profile.tipo_documento = pending['tipo_documento']
+                profile.rol = Perfil.ROL_ESTUDIANTE
+                profile.save(update_fields=['tipo_documento', 'rol'])
+                clear_pending_registration(pending)
+                cache.set(verified_registration_token_key(token), user.id, 600)
+
+            payload = build_user_payload(user, profile)
+            payload['message'] = 'VerificaciÃ³n exitosa'
+            return Response(payload, status=status.HTTP_200_OK)
+
+        try:
+            vt = EmailVerificationToken.objects.select_related('user').get(token=token)
+        except EmailVerificationToken.DoesNotExist:
+            return Response({'error': 'No se pudo verificar la cuenta, intenta de nuevo.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if vt.is_expired():
+            vt.delete()
+            return Response({'error': 'No se pudo verificar la cuenta, intenta de nuevo.'}, status=status.HTTP_410_GONE)
+
+        user = vt.user
+        if user.is_active:
+            vt.delete()
+        else:
+            user.is_active = True
+            user.save(update_fields=['is_active'])
+            vt.delete()
+
+        profile = get_or_create_profile(user)
+        payload = build_user_payload(user, profile)
+        payload['message'] = 'Verificación exitosa'
+
+        return Response(payload, status=status.HTTP_200_OK)
+
+    try:
+        data = json.loads(request.body)
+        email = (data.get('email') or '').strip().lower()
+        if not email:
+            return Response({'error': 'Email requerido'}, status=status.HTTP_400_BAD_REQUEST)
+
+        pending = cache.get(pending_registration_email_key(email))
+        if pending:
+            pending = save_pending_registration({
+                'tipo_documento': pending['tipo_documento'],
+                'numero_documento': pending['numero_documento'],
+                'nombre_completo': pending['nombre_completo'],
+                'email': pending['email'],
+                'password': pending['password'],
+            })
+            try:
+                send_verification_email(SimpleNamespace(**pending), pending['token'])
+            except Exception:
+                clear_pending_registration(pending)
+                raise
+            return Response({'message': 'Correo de verificacion reenviado. Revisa tu bandeja de entrada.'}, status=status.HTTP_200_OK)
+
+        user = User.objects.filter(email__iexact=email, is_active=False).first()
+        if not user:
+            return Response({'error': 'No hay una cuenta pendiente de verificacion con ese email'}, status=status.HTTP_404_NOT_FOUND)
+
+        token = EmailVerificationToken.generate_for_user(user)
+        send_verification_email(user, token)
+
+        return Response({'message': 'Correo de verificacion reenviado. Revisa tu bandeja de entrada.'}, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(['GET'])

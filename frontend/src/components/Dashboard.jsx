@@ -7,7 +7,8 @@ import iconHome from '../assets/house-door-fill.svg';
 import iconAccount from '../assets/person-circle.svg';
 import iconMoon from '../assets/moon-fill.svg';
 import iconSun from '../assets/brightness-high-fill.svg';
-import heroVideo from '../assets/Video_Orientación_Vocacional_Sin_Texto.mp4';
+import iconCerrarSesion from '../assets/cerrar-sesion.png';
+import heroBanner from '../assets/areasimg.jpg';
 import iconEncuesta from '../assets/encuesta-128x128.png';
 import iconAnalisis from '../assets/análisis-128x128.png';
 import iconEducacion from '../assets/educación-128x128.png';
@@ -393,7 +394,6 @@ function Dashboard() {
       case 'universidades':
         return (
           <div className="universidades-container">
-            <h2>Universidades</h2>
             <section className="universidades-hero">
               <div className="universidades-hero-copy">
                 <div className="universidades-hero-badge">Tu futuro comienza aqui</div>
@@ -453,15 +453,11 @@ function Dashboard() {
         return (
           <div className="inicio-container">
             <div className="hero-section">
-              <video
-                className="hero-video"
-                src={heroVideo}
-                autoPlay
-                muted
-                loop
-                playsInline
+              <img
+                src={heroBanner}
+                alt="Imagen principal del dashboard"
+                className="hero-image"
               />
-              <div className="hero-overlay" aria-hidden="true" />
             </div>
             <section className="intro-section">
               <div className="intro-badge">Tu siguiente decision importa</div>
@@ -598,7 +594,7 @@ function Dashboard() {
           </button>
         </nav>
         <button className="sidebar-item logout" onClick={handleLogout}>
-          <span className="sidebar-symbol" aria-hidden="true">{'<'}</span>
+          <img src={iconCerrarSesion} alt="" className="menu-icon-img logout-icon" />
           <span className="sidebar-label">Cerrar sesion</span>
         </button>
       </aside>

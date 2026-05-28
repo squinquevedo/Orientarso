@@ -24,17 +24,17 @@
   --danger-soft: #fef2f2;
   --surface-soft: #ffffff;
   --surface-strong: #ffffff;
-  --card-shadow: 0 6px 14px rgba(15, 23, 42, 0.05);
-  --card-shadow-hover: 0 10px 20px rgba(15, 23, 42, 0.08);
+  --card-shadow: none;
+  --card-shadow-hover: none;
   --main-bg: #f8fafc;
   --intro-bg: #ffffff;
-  --intro-border: rgba(37, 99, 235, 0.2);
+  --intro-border: #bfdbfe;
   --intro-title: #0f172a;
   --intro-copy: #1e3a5f;
-  --intro-badge-bg: rgba(255, 255, 255, 0.7);
-  --intro-badge-border: rgba(37, 99, 235, 0.18);
+  --intro-badge-bg: #eff6ff;
+  --intro-badge-border: #bfdbfe;
   --intro-badge-text: #1d4ed8;
-  --intro-highlight-bg: rgba(255, 255, 255, 0.82);
+  --intro-highlight-bg: #eff6ff;
   --intro-highlight-border: #f59e0b;
   --intro-highlight-text: #0f172a;
 }
@@ -52,17 +52,17 @@
   --danger-soft: #2a1218;
   --surface-soft: #111827;
   --surface-strong: #111827;
-  --card-shadow: 0 6px 14px rgba(2, 6, 23, 0.2);
-  --card-shadow-hover: 0 10px 20px rgba(2, 6, 23, 0.28);
+  --card-shadow: none;
+  --card-shadow-hover: none;
   --main-bg: #0f172a;
   --intro-bg: #111827;
-  --intro-border: rgba(148, 163, 184, 0.16);
+  --intro-border: #334155;
   --intro-title: #ffffff;
-  --intro-copy: rgba(226, 232, 240, 0.88);
-  --intro-badge-bg: rgba(15, 23, 42, 0.55);
-  --intro-badge-border: rgba(148, 163, 184, 0.2);
+  --intro-copy: #cbd5e1;
+  --intro-badge-bg: #172554;
+  --intro-badge-border: #1d4ed8;
   --intro-badge-text: #cbd5e1;
-  --intro-highlight-bg: rgba(15, 23, 42, 0.55);
+  --intro-highlight-bg: #172554;
   --intro-highlight-border: #f59e0b;
   --intro-highlight-text: #ffffff;
 }
@@ -141,6 +141,7 @@
   margin-bottom: 12px;
   background: var(--header-bg);
   color: #ffffff;
+  border-radius: 10px;
 }
 
 .sidebar-brand:hover {
@@ -224,8 +225,8 @@
   border-radius: 50%;
   display: block;
   object-fit: cover;
-  border: 4px solid rgba(37, 99, 235, 0.4);
-  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.18);
+  border: 4px solid var(--accent-border);
+  box-shadow: none;
 }
 
 .photo-edit-btn {
@@ -360,7 +361,7 @@
 
 .main-content {
   flex: 1;
-  padding: 40px;
+  padding: 32px;
   margin-left: var(--sidebar-width);
   overflow-y: auto;
   background: var(--main-bg);
@@ -390,34 +391,14 @@
 .hero-section {
   position: relative;
   width: min(100%, 1240px);
-  height: 500px;
-  border-radius: 20px;
+  height: 340px;
+  border-radius: 10px;
   overflow: hidden;
-  margin-bottom: 40px;
+  margin-bottom: 24px;
   margin-left: auto;
   margin-right: auto;
-  box-shadow: var(--card-shadow);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: #0b1220;
-}
-
-.hero-video {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  filter: saturate(1.05) contrast(1.02);
-}
-
-.hero-overlay {
-  position: absolute;
-  inset: 0;
-  background:
-    linear-gradient(180deg, rgba(2, 6, 23, 0.2) 0%, rgba(2, 6, 23, 0.5) 100%),
-    radial-gradient(circle at 20% 20%, rgba(59, 130, 246, 0.18), transparent 45%),
-    radial-gradient(circle at 85% 10%, rgba(251, 191, 36, 0.18), transparent 40%);
-  pointer-events: none;
+  box-shadow: none;
+  border: 1px solid var(--border);
 }
 
 .hero-image {
@@ -431,11 +412,11 @@
   position: relative;
   background: var(--intro-bg);
   border: 1px solid var(--intro-border);
-  border-radius: 18px;
-  padding: 34px 34px 30px;
-  margin-bottom: 32px;
+  border-radius: 10px;
+  padding: 30px;
+  margin-bottom: 24px;
   width: min(100%, 1460px);
-  box-shadow: var(--card-shadow);
+  box-shadow: none;
   text-align: center;
   display: flex;
   flex-direction: column;
@@ -486,7 +467,7 @@
   margin-top: 22px;
   padding: 16px 18px;
   border-left: 4px solid var(--header-bg);
-  border-radius: 14px;
+  border-radius: 8px;
   background: var(--accent-soft);
   color: var(--intro-highlight-text);
   font-weight: 600;
@@ -529,10 +510,10 @@
   overflow: hidden;
   background: var(--card-bg);
   padding: 28px;
-  border-radius: 16px;
-  box-shadow: var(--card-shadow);
+  border-radius: 10px;
+  box-shadow: none;
   cursor: pointer;
-  transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+  transition: background 0.2s ease, border-color 0.2s ease;
   text-align: left;
   border: 1px solid var(--border);
   min-height: 245px;
@@ -542,8 +523,8 @@
 }
 
 .menu-card:hover {
-  transform: translateY(-3px);
-  box-shadow: var(--card-shadow-hover);
+  background: var(--accent-soft);
+  box-shadow: none;
   border-color: var(--accent-border);
 }
 
@@ -597,7 +578,8 @@
   background: var(--accent-soft);
   width: fit-content;
   padding: 10px 14px;
-  border-radius: 12px;
+  border: 1px solid var(--accent-border);
+  border-radius: 8px;
 }
 
 .menu-link::after {
@@ -608,11 +590,11 @@
 .dashboard.dark .menu-card {
   background: var(--card-bg);
   border-color: var(--border);
-  box-shadow: var(--card-shadow);
+  box-shadow: none;
 }
 
 .dashboard.dark .menu-card:hover {
-  box-shadow: var(--card-shadow-hover);
+  box-shadow: none;
   border-color: var(--accent-border);
 }
 
@@ -647,9 +629,9 @@
 .universidades-hero-copy {
   background: var(--surface-strong);
   border: 1px solid var(--accent-border);
-  border-radius: 16px;
+  border-radius: 10px;
   overflow: hidden;
-  box-shadow: var(--card-shadow);
+  box-shadow: none;
 }
 
 .universidades-hero-copy {
@@ -721,9 +703,9 @@
 .prueba-card {
   background: var(--card-bg);
   padding: 25px;
-  border-radius: 16px;
+  border-radius: 10px;
   margin-bottom: 20px;
-  box-shadow: var(--card-shadow);
+  box-shadow: none;
   border: 1px solid var(--border);
 }
 
@@ -743,7 +725,7 @@
   padding: 15px;
   background-color: var(--card-bg);
   border: 2px solid var(--border);
-  border-radius: 12px;
+  border-radius: 8px;
   cursor: pointer;
   font-size: 0.95rem;
   transition: all 0.3s;
@@ -760,7 +742,7 @@
   background-color: #1d4ed8;
   color: #ffffff;
   border-color: #1d4ed8;
-  box-shadow: 0 10px 20px rgba(29, 78, 216, 0.2);
+  box-shadow: none;
 }
 
 .prueba-loading,
@@ -773,7 +755,7 @@
   padding: 16px 18px;
   margin-bottom: 18px;
   color: var(--muted);
-  box-shadow: 0 2px 4px rgba(15, 23, 42, 0.06);
+  box-shadow: none;
 }
 
 .prueba-error {
@@ -785,9 +767,9 @@
 .resultado-card {
   background: var(--card-bg);
   padding: 25px;
-  border-radius: 16px;
+  border-radius: 10px;
   margin-bottom: 25px;
-  box-shadow: var(--card-shadow);
+  box-shadow: none;
   border: 1px solid var(--border);
 }
 
@@ -818,8 +800,8 @@
 .recomendaciones {
   background: var(--card-bg);
   padding: 25px;
-  border-radius: 16px;
-  box-shadow: var(--card-shadow);
+  border-radius: 10px;
+  box-shadow: none;
   border: 1px solid var(--border);
 }
 
@@ -852,10 +834,10 @@
 .universidades-area-header {
   position: relative;
   padding: 24px 26px;
-  border-radius: 16px;
+  border-radius: 10px;
   background: var(--card-bg);
   border: 1px solid var(--border);
-  box-shadow: var(--card-shadow);
+  box-shadow: none;
   overflow: hidden;
 }
 
@@ -885,10 +867,10 @@
 .uni-card {
   position: relative;
   background: var(--card-bg);
-  border-radius: 16px;
+  border-radius: 10px;
   overflow: hidden;
-  box-shadow: var(--card-shadow);
-  transition: transform 0.25s ease, box-shadow 0.25s ease;
+  box-shadow: none;
+  transition: background 0.2s ease, border-color 0.2s ease;
   border: 1px solid var(--border);
   display: flex;
   flex-direction: column;
@@ -899,8 +881,9 @@
 }
 
 .uni-card:hover {
-  transform: translateY(-3px);
-  box-shadow: var(--card-shadow-hover);
+  background: var(--accent-soft);
+  box-shadow: none;
+  border-color: var(--accent-border);
 }
 
 .uni-imagen {
@@ -991,12 +974,12 @@
   gap: 8px;
   margin-top: auto;
   padding: 12px 18px;
-  border-radius: 12px;
+  border-radius: 8px;
   background: var(--header-bg);
   color: #ffffff;
   text-decoration: none;
   font-weight: 700;
-  transition: transform 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+  transition: background 0.2s ease;
   box-shadow: none;
 }
 
@@ -1007,7 +990,6 @@
 
 .uni-link-btn:hover {
   background: #1d4ed8;
-  transform: translateY(-2px);
   box-shadow: none;
 }
 
@@ -1018,7 +1000,7 @@
 
 .dashboard.dark .uni-card {
   border-color: var(--border);
-  box-shadow: var(--card-shadow);
+  box-shadow: none;
 }
 
 .dashboard.dark .uni-programa-tag {
@@ -1053,12 +1035,12 @@
 
   .intro-section {
     padding: 24px 20px;
-    border-radius: 20px;
+    border-radius: 10px;
   }
 
   .hero-section {
-    height: 360px;
-    border-radius: 22px;
+    height: 260px;
+    border-radius: 10px;
   }
 
   .universidades-hero-copy {
@@ -1082,9 +1064,9 @@
 .config-card {
   background: var(--card-bg);
   padding: 25px;
-  border-radius: 16px;
+  border-radius: 10px;
   margin-bottom: 20px;
-  box-shadow: var(--card-shadow);
+  box-shadow: none;
   border: 1px solid var(--border);
 }
 
@@ -1108,7 +1090,7 @@
   width: 100%;
   padding: 10px;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 8px;
   font-size: 1rem;
   box-sizing: border-box;
   background: var(--card-bg);
@@ -1118,13 +1100,13 @@
 .form-group .form-control:focus {
   outline: none;
   border-color: #2563EB;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.18);
+  box-shadow: none;
 }
 
 .btn {
   display: inline-block;
   padding: 10px 16px;
-  border-radius: 10px;
+  border-radius: 8px;
   border: 1px solid transparent;
   font-weight: 700;
   cursor: pointer;
@@ -1243,12 +1225,12 @@
 .admin-card {
   background: rgba(255, 255, 255, 0.9);
   border: 1px solid rgba(20, 20, 20, 0.08);
-  border-radius: 14px;
+  border-radius: 10px;
   padding: 18px;
   display: flex;
   flex-direction: column;
   gap: 16px;
-  box-shadow: 0 18px 36px rgba(28, 39, 59, 0.08);
+  box-shadow: none;
 }
 
 .dashboard.dark .admin-card {
@@ -1354,8 +1336,8 @@
   overflow: hidden;
   background: rgba(255, 255, 255, 0.92);
   border: 1px solid rgba(20, 20, 20, 0.08);
-  border-radius: 14px;
-  box-shadow: 0 18px 36px rgba(28, 39, 59, 0.08);
+  border-radius: 10px;
+  box-shadow: none;
 }
 
 .dashboard.dark .admin-table-card {

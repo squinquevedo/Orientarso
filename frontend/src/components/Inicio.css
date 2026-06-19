@@ -304,6 +304,16 @@ body{
   line-height:1.6;
 }
 
+.public-test-instructions{
+  display:inline-block;
+  margin:12px 0 0;
+  padding-left:22px;
+  color:#475569;
+  font-size:16px;
+  line-height:1.6;
+  text-align:left;
+}
+
 .public-test-message{
   max-width:980px;
   margin:0 auto 18px;

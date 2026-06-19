@@ -39,6 +39,13 @@ SIMULATED_ERROR_MESSAGES = {
     500: 'Error 500 simulado de forma controlada.',
     503: 'Error 503 simulado de forma controlada.',
 }
+RESPONSE_OPTIONS = [
+    (1, 'Totalmente en desacuerdo', 1),
+    (2, 'En desacuerdo', 2),
+    (3, 'Ni de acuerdo, ni en desacuerdo', 3),
+    (4, 'De acuerdo', 4),
+    (5, 'Totalmente de acuerdo', 5),
+]
 
 
 def pending_registration_token_key(token):
@@ -291,6 +298,27 @@ El equipo de Orientarso
 def dictfetchall(cursor):
     columns = [col[0] for col in cursor.description]
     return [dict(zip(columns, row)) for row in cursor.fetchall()]
+
+
+def ensure_response_options(cursor):
+    cursor.execute('SELECT id, respuesta, valor FROM tb_respuesta ORDER BY valor, id')
+    rows = cursor.fetchall()
+    if list(rows) == RESPONSE_OPTIONS:
+        return rows
+
+    cursor.execute('DELETE FROM tb_respuesta')
+    cursor.executemany(
+        'INSERT INTO tb_respuesta (id, respuesta, valor) VALUES (%s, %s, %s)',
+        RESPONSE_OPTIONS,
+    )
+    return RESPONSE_OPTIONS
+
+
+def ensure_resultado_test_json_column(cursor):
+    cursor.execute("SHOW COLUMNS FROM tb_resultado_test LIKE 'resultado_json'")
+    if cursor.fetchone():
+        return
+    cursor.execute('ALTER TABLE tb_resultado_test ADD COLUMN resultado_json JSON NULL')
 
 
 @api_view(['GET'])
@@ -1039,7 +1067,8 @@ def api_preguntas(request):
     try:
         with connection.cursor() as cursor:
             cursor.execute('SELECT id, pregunta, valor, id_area FROM tb_preguntas ORDER BY id')
-            rows = cursor.fetchall()
+            pregunta_rows = cursor.fetchall()
+            respuesta_rows = ensure_response_options(cursor)
 
         preguntas = [
             {
@@ -1048,8 +1077,18 @@ def api_preguntas(request):
                 'valor': row[2],
                 'id_area': row[3],
             }
-            for row in rows
+            for row in pregunta_rows
         ]
+        opciones = [
+            {
+                'id': row[0],
+                'label': row[1],
+                'value': row[2],
+            }
+            for row in respuesta_rows
+        ]
+        for pregunta in preguntas:
+            pregunta['opciones'] = opciones
         return Response(preguntas, status=status.HTTP_200_OK)
     except Exception as e:
         return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -1106,17 +1145,20 @@ def build_test_attempts_payload(user_id):
         cursor.execute(
             f'''
             SELECT
-                r.id_test,
-                p.id_area,
+                rt.id_test,
+                rt.id_area,
                 a.nom_area,
-                SUM(r.respuesta) AS score,
-                SUM(p.valor) AS max_score
-            FROM tb_respuesta r
-            INNER JOIN tb_preguntas p ON p.id = r.id_pregunta
-            LEFT JOIN tb_area a ON a.id = p.id_area
-            WHERE r.id_test IN ({placeholders})
-            GROUP BY r.id_test, p.id_area, a.nom_area
-            ORDER BY r.id_test, score DESC
+                rt.puntaje_total AS score,
+                COALESCE(maximos.max_score, 0) AS max_score
+            FROM tb_resultado_test rt
+            LEFT JOIN tb_area a ON a.id = rt.id_area
+            LEFT JOIN (
+                SELECT id_area, SUM(valor) AS max_score
+                FROM tb_preguntas
+                GROUP BY id_area
+            ) maximos ON maximos.id_area = rt.id_area
+            WHERE rt.id_test IN ({placeholders})
+            ORDER BY rt.id_test, score DESC
             ''',
             test_ids,
         )
@@ -1174,6 +1216,7 @@ def api_test(request):
 
         with transaction.atomic():
             with connection.cursor() as cursor:
+                ensure_resultado_test_json_column(cursor)
                 cursor.execute('SELECT COUNT(*) FROM tb_test WHERE id_auth_user = %s', [request.user.id])
                 count = cursor.fetchone()[0] or 0
                 intento = count + 1
@@ -1181,10 +1224,11 @@ def api_test(request):
                 cursor.execute('SELECT MAX(id) FROM tb_test')
                 max_id = cursor.fetchone()[0] or 0
                 test_id = max_id + 1
+                fecha_registro = timezone.now()
 
                 cursor.execute(
                     'INSERT INTO tb_test (id, id_auth_user, fecha_registro, intento) VALUES (%s, %s, %s, %s)',
-                    [test_id, request.user.id, timezone.now(), intento],
+                    [test_id, request.user.id, fecha_registro, intento],
                 )
 
                 valores = []
@@ -1197,15 +1241,110 @@ def api_test(request):
                     valores.append((test_id, id_pregunta, respuesta))
 
                 if valores:
-                    cursor.execute('SELECT MAX(id) FROM tb_respuesta')
-                    max_resp_id = cursor.fetchone()[0] or 0
-                    valores_con_id = []
-                    for idx, (id_test_val, id_pregunta_val, respuesta_val) in enumerate(valores, start=1):
-                        valores_con_id.append((max_resp_id + idx, id_test_val, id_pregunta_val, respuesta_val))
-                    cursor.executemany(
-                        'INSERT INTO tb_respuesta (id, id_test, id_pregunta, respuesta) VALUES (%s, %s, %s, %s)',
-                        valores_con_id,
+                    opciones_catalogo = ensure_response_options(cursor)
+                    opciones_validas = {float(row[2]) for row in opciones_catalogo}
+                    max_opcion = max(opciones_validas) if opciones_validas else 5
+
+                    pregunta_ids = [id_pregunta for _, id_pregunta, _ in valores]
+                    placeholders = ', '.join(['%s'] * len(pregunta_ids))
+                    cursor.execute(
+                        f'''
+                        SELECT p.id, p.pregunta, p.id_area, a.nom_area, p.valor
+                        FROM tb_preguntas p
+                        LEFT JOIN tb_area a ON a.id = p.id_area
+                        WHERE p.id IN ({placeholders})
+                        ''',
+                        pregunta_ids,
                     )
+                    preguntas_por_id = {
+                        int(row[0]): {
+                            'pregunta': row[1],
+                            'id_area': int(row[2]),
+                            'area': row[3] or f"Area {row[2]}",
+                            'valor': float(row[4] or 0),
+                        }
+                        for row in cursor.fetchall()
+                    }
+                    opciones_por_valor = {
+                        float(row[2]): {
+                            'id': int(row[0]),
+                            'respuesta': row[1],
+                            'valor': int(row[2]),
+                        }
+                        for row in opciones_catalogo
+                    }
+
+                    puntajes_por_area = {}
+                    respuestas_detalle = []
+                    for _, id_pregunta_val, respuesta_val in valores:
+                        if respuesta_val not in opciones_validas:
+                            continue
+                        pregunta = preguntas_por_id.get(id_pregunta_val)
+                        if not pregunta:
+                            continue
+                        id_area = pregunta['id_area']
+                        puntaje = (respuesta_val / max_opcion) * pregunta['valor']
+                        puntajes_por_area[id_area] = puntajes_por_area.get(id_area, 0) + puntaje
+                        opcion = opciones_por_valor.get(respuesta_val, {})
+                        respuestas_detalle.append(
+                            {
+                                'id_pregunta': id_pregunta_val,
+                                'pregunta': pregunta['pregunta'],
+                                'id_area': id_area,
+                                'area': pregunta['area'],
+                                'respuesta': opcion.get('respuesta', ''),
+                                'valor_respuesta': int(respuesta_val),
+                                'puntaje_pregunta': round(puntaje, 2),
+                            }
+                        )
+
+                    puntajes_detalle = [
+                        {
+                            'id_area': id_area,
+                            'area': next(
+                                (
+                                    pregunta['area']
+                                    for pregunta in preguntas_por_id.values()
+                                    if pregunta['id_area'] == id_area
+                                ),
+                                f'Area {id_area}',
+                            ),
+                            'puntaje_total': round(puntaje_total, 2),
+                        }
+                        for id_area, puntaje_total in puntajes_por_area.items()
+                    ]
+                    resultado_json = json.dumps(
+                        {
+                            'id_test': test_id,
+                            'usuario': {
+                                'id': request.user.id,
+                                'username': request.user.username,
+                                'email': request.user.email,
+                                'nombre': request.user.get_full_name() or request.user.first_name or request.user.username,
+                            },
+                            'fecha_registro': fecha_registro.isoformat(),
+                            'intento': intento,
+                            'respuestas': respuestas_detalle,
+                            'puntajes_por_area': puntajes_detalle,
+                        },
+                        ensure_ascii=False,
+                    )
+
+                    cursor.execute('SELECT MAX(id) FROM tb_resultado_test')
+                    max_resultado_id = cursor.fetchone()[0] or 0
+                    resultados_con_id = []
+                    for idx, (id_area, puntaje_total) in enumerate(puntajes_por_area.items(), start=1):
+                        resultados_con_id.append((max_resultado_id + idx, test_id, id_area, puntaje_total, resultado_json))
+
+                    if resultados_con_id:
+                        cursor.executemany(
+                            '''
+                            INSERT INTO tb_resultado_test
+                                (id, id_test, id_area, puntaje_total, resultado_json)
+                            VALUES (%s, %s, %s, %s, %s)
+                            ''',
+                            resultados_con_id,
+                        )
 
         return Response(
             {
@@ -1259,7 +1398,7 @@ def api_admin_user_detail(request, user_id):
                 cursor.execute('DELETE FROM usuarios_perfil WHERE user_id = %s', [user.id])
                 cursor.execute(
                     '''
-                    DELETE FROM tb_respuesta
+                    DELETE FROM tb_resultado_test
                     WHERE id_test IN (
                         SELECT id FROM tb_test WHERE id_auth_user = %s
                     )

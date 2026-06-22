@@ -304,6 +304,16 @@ body{
   line-height:1.6;
 }
 
+.public-test-instructions{
+  display:inline-block;
+  margin:12px 0 0;
+  padding-left:22px;
+  color:#475569;
+  font-size:16px;
+  line-height:1.6;
+  text-align:left;
+}
+
 .public-test-message{
   max-width:980px;
   margin:0 auto 18px;
@@ -740,7 +750,41 @@ body{
   width:100%;
   background:#ffffff;
   max-height:90vh;
-  overflow:auto;
+  overflow:hidden;
+  padding:10px;
+}
+
+.signup-modal .auth-container{
+  min-height:0;
+}
+
+.signup-modal .auth-card{
+  max-height:none;
+  overflow:visible;
+  padding:1.2rem;
+}
+
+.signup-modal .auth-title{
+  margin-bottom:0.8rem;
+  font-size:1.45rem;
+}
+
+.signup-modal .mb-3{
+  margin-bottom:0.7rem;
+}
+
+.signup-modal .form-control{
+  padding:0.58rem 0.75rem;
+}
+
+.signup-modal .password-checklist{
+  margin-top:0.35rem;
+  font-size:0.76rem;
+}
+
+.signup-modal .alert{
+  margin-bottom:0.75rem;
+  padding:0.65rem 0.85rem;
 }
 
 /* AREAS */

@@ -909,6 +909,21 @@
   margin-bottom: 30px;
 }
 
+.prueba-instrucciones {
+  color: var(--muted);
+  margin-bottom: 30px;
+  line-height: 1.55;
+}
+
+.prueba-instrucciones p {
+  margin: 0 0 10px;
+}
+
+.prueba-instrucciones ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
 .prueba-card {
   background: var(--card-bg);
   padding: 25px;

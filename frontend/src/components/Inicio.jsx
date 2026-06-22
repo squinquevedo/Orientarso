@@ -196,7 +196,7 @@ function Inicio() {
             Realiza nuestro test de orientación vocacional y encuentra la carrera
             que mejor se adapta a tus habilidades, intereses y personalidad.
           </p>
-          <button type="button" className="btn" onClick={startPublicTest}>Realizar Test</button>
+          <button type="button" className="btn btn-primary" onClick={startPublicTest}>Realizar Test</button>
         </div>
       </section>
 
@@ -251,7 +251,7 @@ function Inicio() {
             {preguntas.length > 0 && (
               <button
                 type="button"
-                className="btn public-test-submit"
+                className="btn btn-primary public-test-submit"
                 onClick={requestSignupForResults}
               >
                 Ver resultados

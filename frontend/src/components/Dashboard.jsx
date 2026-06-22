@@ -146,6 +146,16 @@ const universidadesData = [
 
 function Dashboard() {
   const [username, setUsername] = useState('Invitado');
+  const [accountForm, setAccountForm] = useState({ nombre: '', usuario: '', email: '' });
+  const [accountEditing, setAccountEditing] = useState(false);
+  const [accountMessage, setAccountMessage] = useState('');
+  const [passwordForm, setPasswordForm] = useState({
+    actual: '',
+    nueva: '',
+    confirmar: '',
+  });
+  const [passwordMessage, setPasswordMessage] = useState('');
+  const [showPasswordFields, setShowPasswordFields] = useState(false);
   const [vistaActual, setVistaActual] = useState('inicio');
   const [menuAbierto, setMenuAbierto] = useState(false);
   const [fotoModalAbierto, setFotoModalAbierto] = useState(false);
@@ -215,8 +225,10 @@ function Dashboard() {
     const user = localStorage.getItem('username');
     if (fullName) {
       setUsername(fullName);
+      setAccountForm((prev) => ({ ...prev, nombre: fullName }));
     } else if (user) {
       setUsername(user);
+      setAccountForm((prev) => ({ ...prev, nombre: user, usuario: user }));
     }
 
     const cargarNombre = async () => {
@@ -235,6 +247,11 @@ function Dashboard() {
           localStorage.setItem('fullName', nombre);
           setUsername(nombre);
         }
+        setAccountForm({
+          nombre: nombre || response?.data?.username || user || '',
+          usuario: response?.data?.username || user || '',
+          email: response?.data?.email || '',
+        });
         setFotoPerfil(response?.data?.foto_perfil_url || '');
       } catch (error) {
         if (error.response?.status === 401 || error.response?.status === 403) {
@@ -390,6 +407,62 @@ function Dashboard() {
       sessionStorage.clear();
       navigate('/', { replace: true });
     }
+  };
+
+  const passwordStrength = useMemo(() => {
+    const value = passwordForm.nueva;
+    let score = 0;
+    if (value.length >= 8) score += 1;
+    if (/[A-Z]/.test(value)) score += 1;
+    if (/[0-9]/.test(value)) score += 1;
+    if (/[^A-Za-z0-9]/.test(value)) score += 1;
+    return score;
+  }, [passwordForm.nueva]);
+
+  const passwordStrengthLabel = ['Muy baja', 'Basica', 'Media', 'Buena', 'Fuerte'][passwordStrength];
+
+  const handleAccountChange = (field, value) => {
+    setAccountForm((prev) => ({ ...prev, [field]: value }));
+    setAccountMessage('');
+  };
+
+  const saveAccountFrontend = (event) => {
+    event.preventDefault();
+    const nombre = accountForm.nombre.trim();
+    if (!nombre) {
+      setAccountMessage('Escribe un nombre para mostrar.');
+      return;
+    }
+
+    setUsername(nombre);
+    localStorage.setItem('fullName', nombre);
+    setAccountEditing(false);
+    setAccountMessage('Nombre actualizado en esta sesion.');
+  };
+
+  const handlePasswordChange = (field, value) => {
+    setPasswordForm((prev) => ({ ...prev, [field]: value }));
+    setPasswordMessage('');
+  };
+
+  const validatePasswordFrontend = (event) => {
+    event.preventDefault();
+    if (!passwordForm.actual || !passwordForm.nueva || !passwordForm.confirmar) {
+      setPasswordMessage('Completa los tres campos para continuar.');
+      return;
+    }
+    if (passwordForm.nueva.length < 8) {
+      setPasswordMessage('La nueva contrasena debe tener minimo 8 caracteres.');
+      return;
+    }
+    if (passwordForm.nueva !== passwordForm.confirmar) {
+      setPasswordMessage('La confirmacion no coincide con la nueva contrasena.');
+      return;
+    }
+
+    setPasswordForm({ actual: '', nueva: '', confirmar: '' });
+    setShowPasswordFields(false);
+    setPasswordMessage('Formulario validado. Para guardar la contrasena real se necesita conectar el backend.');
   };
 
   const maxPorArea = useMemo(() => {
@@ -667,46 +740,156 @@ function Dashboard() {
       case 'configuracion':
         return (
           <div className="configuracion-container">
-            <h2>Configuracion</h2>
-            <div className="config-card">
-              <h3>Perfil</h3>
-              <div className="form-group">
-                <label>Nombre:</label>
-                <input type="text" value={username} readOnly className="form-control" />
-              </div>
-              <div className="form-group">
-                <label>Primer nombre:</label>
-                <input type="text" value={username} readOnly className="form-control" />
-              </div>
-              <button className="btn btn-primary btn-icon">
-                <img src={iconGuardar} alt="" />
-                Guardar cambios
+            <div className="account-header">
+              <button
+                type="button"
+                className="account-avatar-button"
+                onClick={() => setFotoModalAbierto(true)}
+                aria-label="Cambiar foto de perfil"
+              >
+                {fotoPerfil ? (
+                  <img src={fotoPerfil} alt="Foto de perfil" />
+                ) : (
+                  <img src={iconAccount} alt="" />
+                )}
               </button>
+              <div>
+                <h2>Mi cuenta</h2>
+                <p>{accountForm.email || 'Administra como se ve tu perfil en Orientarso.'}</p>
+              </div>
             </div>
-            <div className="config-card">
-              <h3>Cambiar contrasena</h3>
-              <div className="form-group">
-                <label>Contrasena actual:</label>
-                <input type="password" className="form-control" />
+
+            <form className="config-card account-card" onSubmit={saveAccountFrontend}>
+              <div className="account-card-title">
+                <div>
+                  <h3>Perfil publico</h3>
+                  <p>Actualiza tu nombre visible en el dashboard.</p>
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setAccountEditing((prev) => !prev)}
+                >
+                  {accountEditing ? 'Cancelar' : 'Editar'}
+                </button>
               </div>
-              <div className="form-group">
-                <label>Nueva contrasena:</label>
-                <input type="password" className="form-control" />
+
+              <div className="account-fields-grid">
+                <div className="form-group">
+                  <label>Nombre visible</label>
+                  <input
+                    type="text"
+                    value={accountForm.nombre}
+                    onChange={(event) => handleAccountChange('nombre', event.target.value)}
+                    readOnly={!accountEditing}
+                    className="form-control"
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Usuario</label>
+                  <input type="text" value={accountForm.usuario || 'Sin usuario'} readOnly className="form-control" />
+                </div>
+                <div className="form-group account-field-wide">
+                  <label>Correo</label>
+                  <input type="email" value={accountForm.email || 'Sin correo registrado'} readOnly className="form-control" />
+                </div>
               </div>
-              <div className="form-group">
-                <label>Confirmar contrasena:</label>
-                <input type="password" className="form-control" />
+
+              {accountMessage && <div className="account-message">{accountMessage}</div>}
+
+              {accountEditing && (
+                <button className="btn btn-primary btn-icon" type="submit">
+                  <img src={iconGuardar} alt="" />
+                  Guardar cambios
+                </button>
+              )}
+            </form>
+
+            <form className="config-card account-card" onSubmit={validatePasswordFrontend}>
+              <div className="account-card-title">
+                <div>
+                  <h3>Seguridad</h3>
+                  <p>Cambia tu contrasena con una validacion rapida antes de guardar.</p>
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setShowPasswordFields((prev) => !prev)}
+                >
+                  {showPasswordFields ? 'Ocultar' : 'Cambiar'}
+                </button>
               </div>
-              <button className="btn btn-primary">Actualizar contrasena</button>
-            </div>
+
+              {showPasswordFields && (
+                <>
+                  <div className="account-fields-grid">
+                    <div className="form-group">
+                      <label>Contrasena actual</label>
+                      <input
+                        type="password"
+                        value={passwordForm.actual}
+                        onChange={(event) => handlePasswordChange('actual', event.target.value)}
+                        className="form-control"
+                        autoComplete="current-password"
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Nueva contrasena</label>
+                      <input
+                        type="password"
+                        value={passwordForm.nueva}
+                        onChange={(event) => handlePasswordChange('nueva', event.target.value)}
+                        className="form-control"
+                        autoComplete="new-password"
+                      />
+                    </div>
+                    <div className="form-group account-field-wide">
+                      <label>Confirmar contrasena</label>
+                      <input
+                        type="password"
+                        value={passwordForm.confirmar}
+                        onChange={(event) => handlePasswordChange('confirmar', event.target.value)}
+                        className="form-control"
+                        autoComplete="new-password"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="password-meter" data-score={passwordStrength}>
+                    <span />
+                    <strong>{passwordStrengthLabel}</strong>
+                  </div>
+
+                  <button className="btn btn-primary" type="submit">Validar cambio</button>
+                </>
+              )}
+
+              {passwordMessage && <div className="account-message">{passwordMessage}</div>}
+            </form>
           </div>
         );
 
       case 'prueba':
+        const answeredCount = Object.keys(respuestas).length;
+        const totalQuestions = preguntas.length;
+        const progressPercent = totalQuestions ? Math.round((answeredCount / totalQuestions) * 100) : 0;
+
         return (
           <div className="prueba-container">
-            <h2>Prueba Vocacional</h2>
-            <p>Responde las siguientes preguntas para descubrir tu carrera ideal.</p>
+            <div className="prueba-hero">
+              <div>
+                <span className="prueba-badge">Orientacion vocacional</span>
+                <h2>Prueba Vocacional</h2>
+                <p>Responde con calma. Tus respuestas ayudan a sugerir areas y opciones academicas mas cercanas a tus intereses.</p>
+              </div>
+              <div className="prueba-progress-card" aria-label={`Progreso ${progressPercent}%`}>
+                <strong>{progressPercent}%</strong>
+                <span>{answeredCount} de {totalQuestions || 0} respuestas</span>
+                <div className="prueba-progress-track">
+                  <div style={{ width: `${progressPercent}%` }} />
+                </div>
+              </div>
+            </div>
             {cargandoPreguntas && (
               <div className="prueba-loading">Cargando preguntas...</div>
             )}
@@ -718,8 +901,11 @@ function Dashboard() {
             )}
             {preguntas.map((pregunta, index) => (
               <div key={pregunta.id} className="prueba-card">
-                <h3>Pregunta {index + 1}</h3>
-                <p>{pregunta.pregunta}</p>
+                <div className="prueba-card-header">
+                  <span>Pregunta {index + 1}</span>
+                  {respuestas[pregunta.id] !== undefined && <strong>Respondida</strong>}
+                </div>
+                <h3>{pregunta.pregunta}</h3>
                 <div className="opciones">
                   {OPCIONES.map((opcion) => {
                     const active = respuestas[pregunta.id] === opcion.value;
@@ -754,9 +940,26 @@ function Dashboard() {
         );
 
       case 'resultados':
+        const bestAttempt = displayedResults[0];
+        const bestPct = bestAttempt?.pct || 0;
+
         return (
           <div className="resultados-container">
-            <h2>Tus Resultados</h2>
+            <section className="resultados-hero">
+              <div className="resultados-hero-copy">
+                <div className="resultados-hero-badge">Tu perfil vocacional</div>
+                <p className="resultados-hero-quote">
+                  {hasVisibleResults
+                    ? `Area de mayor afinidad: ${bestAttempt?.areaName || areasMap[bestAttempt?.areaKey] || ''} (${bestPct}%)`
+                    : 'Aun no has realizado ningun test'}
+                </p>
+                <p className="resultados-hero-subtext">
+                  {hasVisibleResults
+                    ? 'Estos resultados reflejan tus intereses y te ayudan a explorar carreras afines. Revisa tus intentos y recomendaciones abajo.'
+                    : 'Completa la prueba vocacional para descubrir las areas y carreras que mejor se alinean con tu perfil.'}
+                </p>
+              </div>
+            </section>
             <div className="resultado-card">
               <div className="resultados-header-row">
                 <h3>Intentos realizados</h3>
@@ -790,7 +993,7 @@ function Dashboard() {
                             </td>
                             <td>
                               <button
-                                className="attempt-link"
+                                className="btn btn-primary attempt-link"
                                 type="button"
                                 onClick={() => {
                                   setSelectedAttemptId(attempt.id_test);
@@ -816,13 +1019,19 @@ function Dashboard() {
               {displayedResults.length === 0 && (
                 <div className="resultado-empty">Aun no hay resultados para mostrar.</div>
               )}
-              {displayedResults.map((resultado) => (
+              {displayedResults.map((resultado, index) => (
                 <div key={resultado.areaKey} className="barra-progreso">
-                  <div
-                    className="barra-fill"
-                    style={{ width: `${resultado.pct}%` }}
-                  >
-                    {resultado.areaName || areasMap[resultado.areaKey] || `Area ${resultado.areaKey}`} - {resultado.pct}% ({Math.round(resultado.score)}/{Math.round(resultado.max)})
+                  <div className="barra-label">
+                    <span className="barra-label-name">{resultado.areaName || areasMap[resultado.areaKey] || `Area ${resultado.areaKey}`}</span>
+                    <span className="barra-label-score">{resultado.pct}%</span>
+                  </div>
+                  <div className="barra-track">
+                    <div
+                      className="barra-fill"
+                      style={{ width: `${resultado.pct}%`, '--bar-index': index }}
+                    >
+                      <span className="barra-fill-text">{Math.round(resultado.score)}/{Math.round(resultado.max)}</span>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -838,14 +1047,28 @@ function Dashboard() {
                 {recommendedCareers.length === 0 ? (
                   <div className="resultado-empty">No hay carreras activas para recomendar.</div>
                 ) : (
-                  <ul>
+                  <div className="recomendaciones-grid">
                     {recommendedCareers.map((career) => (
-                      <li key={career.id}>
-                        <strong>{career.nombre}</strong>
-                        <span>{career.areaName} - {career.affinity}% afinidad</span>
-                      </li>
+                      <article key={career.id} className="recomendacion-card">
+                        <div className="recomendacion-card-header">
+                          <span className="recomendacion-badge">{career.affinity}%</span>
+                          <h4>{career.nombre}</h4>
+                        </div>
+                        <div className="recomendacion-card-body">
+                          <p>{career.areaName}</p>
+                        </div>
+                        {career.descripcion && (
+                          <p className="recomendacion-desc">{career.descripcion}</p>
+                        )}
+                        <div className="recomendacion-card-footer">
+                          <div className="recomendacion-bar">
+                            <div className="recomendacion-bar-fill" style={{ width: `${career.affinity}%` }} />
+                          </div>
+                          <span className="recomendacion-bar-label">{career.affinity}% afinidad</span>
+                        </div>
+                      </article>
                     ))}
-                  </ul>
+                  </div>
                 )}
               </div>
             )}
@@ -855,7 +1078,6 @@ function Dashboard() {
       case 'universidades':
         return (
           <div className="universidades-container">
-            <h2>Universidades</h2>
             <section className="universidades-hero">
               <div className="universidades-hero-copy">
                 <div className="universidades-hero-badge">Tu futuro comienza aqui</div>

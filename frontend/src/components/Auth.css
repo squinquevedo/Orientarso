@@ -66,49 +66,7 @@
   gap: 0.5rem;
 }
 
-.btn {
-  padding: 0.75rem 1rem;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 1rem;
-  font-weight: 500;
-  transition: all 0.3s;
-}
-
-.btn-primary {
-  background-color: #2563EB;
-  color: #FFFFFF;
-}
-
-.btn-primary:hover:not(:disabled) {
-  background-color: #1d4ed8;
-}
-
-.btn-success {
-  background-color: #FBBF24;
-  color: #1F2937;
-}
-
-.btn-success:hover:not(:disabled) {
-  background-color: #facc15;
-}
-
-.btn-secondary {
-  background-color: #1F2937;
-  color: #FFFFFF;
-  text-decoration: none;
-  text-align: center;
-}
-
-.btn-secondary:hover {
-  background-color: #111827;
-}
-
-.btn:disabled {
-  opacity: 0.65;
-  cursor: not-allowed;
-}
+/* Los estilos de botones se aplican globalmente desde index.css */
 
 .alert {
   padding: 0.75rem 1rem;

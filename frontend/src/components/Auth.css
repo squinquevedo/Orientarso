@@ -66,7 +66,62 @@
   gap: 0.5rem;
 }
 
-/* Los estilos de botones se aplican globalmente desde index.css */
+.btn {
+  padding: 0.75rem 1rem;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 500;
+  transition: all 0.3s;
+}
+
+.btn-primary {
+  background-color: #2563EB;
+  color: #FFFFFF;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background-color: #1d4ed8;
+}
+
+.verification-login-btn,
+.verification-login-btn:hover:not(:disabled),
+.verification-login-btn:focus {
+  background-color: #2563EB;
+  color: #FFFFFF;
+  border: 1px solid #1d4ed8;
+  box-shadow: 0 10px 20px rgba(37, 99, 235, 0.24);
+}
+
+.verification-login-btn:hover:not(:disabled) {
+  background-color: #1d4ed8;
+}
+
+.btn-success {
+  background-color: #FBBF24;
+  color: #1F2937;
+}
+
+.btn-success:hover:not(:disabled) {
+  background-color: #facc15;
+}
+
+.btn-secondary {
+  background-color: #1F2937;
+  color: #FFFFFF;
+  text-decoration: none;
+  text-align: center;
+}
+
+.btn-secondary:hover {
+  background-color: #111827;
+}
+
+.btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
 
 .alert {
   padding: 0.75rem 1rem;
@@ -111,4 +166,76 @@
 .auth-links a:hover,
 .auth-link-button:hover {
   text-decoration: underline;
+}
+
+.password-checklist {
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0 0;
+  font-size: 0.8rem;
+  color: #6b7280;
+}
+
+.password-checklist li {
+  padding: 2px 0;
+  transition: color 0.2s;
+}
+
+.password-checklist li.valid {
+  color: #16a34a;
+  font-weight: 600;
+}
+
+.forgot-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 16px;
+}
+
+.forgot-modal {
+  background: #fff;
+  border-radius: 12px;
+  padding: 2rem;
+  width: 100%;
+  max-width: 420px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  position: relative;
+  animation: fadeIn 0.2s ease;
+}
+
+.forgot-close {
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: #9ca3af;
+  padding: 0;
+  line-height: 1;
+}
+
+.forgot-close:hover {
+  color: #1f2937;
+}
+
+.password-mismatch {
+  color: #dc2626;
+  font-size: 0.8rem;
+  margin: 0.3rem 0 0;
+  font-weight: 500;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
 }

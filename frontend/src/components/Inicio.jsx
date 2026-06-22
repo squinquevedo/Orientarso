@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import './Inicio.css';
 import heroVideo from '../assets/Video_Generado_con_Orientación.mp4';
@@ -14,14 +15,25 @@ import { useAuthRedirect } from '../utils/useAuthRedirect';
 import { API_BASE } from '../config/api';
 
 const OPCIONES = [
-  { label: 'De acuerdo', value: 25 },
-  { label: 'A veces', value: 15 },
-  { label: 'Muy poco', value: 5 },
-  { label: 'Desacuerdo', value: 0 },
+  { label: 'Totalmente en desacuerdo', value: 1 },
+  { label: 'En desacuerdo', value: 2 },
+  { label: 'Ni de acuerdo, ni en desacuerdo', value: 3 },
+  { label: 'De acuerdo', value: 4 },
+  { label: 'Totalmente de acuerdo', value: 5 },
+];
+
+const TEST_INSTRUCTIONS = [
+  '1- Totalmente en desacuerdo',
+  '2- En desacuerdo',
+  '3- Ni de acuerdo, ni en desacuerdo',
+  '4- De acuerdo',
+  '5- Totalmente de acuerdo',
 ];
 
 function Inicio() {
   useAuthRedirect();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   const [activeCard, setActiveCard] = useState(null);
   const [isClosing, setIsClosing] = useState(false);
@@ -35,6 +47,14 @@ function Inicio() {
   const [errorTest, setErrorTest] = useState('');
 
   const paletteColors = ['#264653', '#2A9D8F', '#E9C46A', '#F4A261', '#E76F51'];
+
+  const opcionesRespuesta = useMemo(() => {
+    const opciones = preguntas.find((pregunta) => Array.isArray(pregunta.opciones))?.opciones || OPCIONES;
+    return opciones.map((opcion) => ({
+      label: opcion.label || opcion.respuesta,
+      value: Number(opcion.value ?? opcion.valor),
+    }));
+  }, [preguntas]);
 
   const openModal = (card) => {
     setIsClosing(false);
@@ -62,6 +82,44 @@ function Inicio() {
   const toggleMenu = () => setIsMenuOpen((prev) => !prev);
   const closeMenu = () => setIsMenuOpen(false);
   const closePublicTest = () => setShowPublicTest(false);
+
+  useEffect(() => {
+    if (searchParams.get('login') === '1') {
+      setIsSignupOpen(false);
+      setIsLoginOpen(true);
+      navigate('/', { replace: true });
+    }
+  }, [navigate, searchParams]);
+
+  useEffect(() => {
+    const handleStorage = (event) => {
+      if (event.key === 'orientarso:open-login') {
+        setIsSignupOpen(false);
+        setShowPublicTest(false);
+        setActiveCard(null);
+        setIsLoginOpen(true);
+      }
+
+      if (event.key === 'orientarso:verification-error-back') {
+        setIsLoginOpen(false);
+        setIsSignupOpen(false);
+        setShowPublicTest(false);
+        setActiveCard(null);
+        navigate('/', { replace: true });
+      }
+
+      if (event.key === 'orientarso:login-success') {
+        setIsLoginOpen(false);
+        setIsSignupOpen(false);
+        setShowPublicTest(false);
+        setActiveCard(null);
+      }
+    };
+
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, [navigate]);
+
   const startPublicTest = async () => {
     setShowPublicTest(true);
     setErrorTest('');
@@ -148,7 +206,14 @@ function Inicio() {
             <button className="modal-close public-test-close" onClick={closePublicTest} aria-label="Cerrar">x</button>
             <div className="public-test-header">
               <h2>Prueba Vocacional</h2>
-              <p>Responde la encuesta y al finalizar te diremos como consultar tus resultados.</p>
+              <p>
+                Lee cada enunciado y elige la opción con la que más te identifiques teniendo en cuenta la siguiente puntuación:
+              </p>
+              <ul className="public-test-instructions">
+                {TEST_INSTRUCTIONS.map((instruction) => (
+                  <li key={instruction}>{instruction}</li>
+                ))}
+              </ul>
             </div>
             {cargandoPreguntas && <div className="public-test-message">Cargando preguntas...</div>}
             {errorTest && <div className="public-test-message error">{errorTest}</div>}
@@ -161,7 +226,7 @@ function Inicio() {
                   <h3>Pregunta {index + 1}</h3>
                   <p>{pregunta.pregunta}</p>
                   <div className="public-options">
-                    {OPCIONES.map((opcion) => {
+                    {opcionesRespuesta.map((opcion) => {
                       const active = respuestas[pregunta.id] === opcion.value;
                       return (
                         <button

@@ -24,12 +24,20 @@ import { API_BASE } from '../config/api';
 import ProfilePhotoModal from './ProfilePhotoModal';
 
 const OPCIONES = [
-  { label: 'De acuerdo', value: 25 },
-  { label: 'A veces', value: 15 },
-  { label: 'Muy poco', value: 5 },
-  { label: 'Desacuerdo', value: 0 },
+  { label: 'Totalmente en desacuerdo', value: 1 },
+  { label: 'En desacuerdo', value: 2 },
+  { label: 'Ni de acuerdo, ni en desacuerdo', value: 3 },
+  { label: 'De acuerdo', value: 4 },
+  { label: 'Totalmente de acuerdo', value: 5 },
 ];
-const MAX_OPTION = Math.max(...OPCIONES.map((o) => o.value));
+
+const TEST_INSTRUCTIONS = [
+  '1- Totalmente en desacuerdo',
+  '2- En desacuerdo',
+  '3- Ni de acuerdo, ni en desacuerdo',
+  '4- De acuerdo',
+  '5- Totalmente de acuerdo',
+];
 
 const REPORT_FIELDS = [
   { id: 'universidad', label: 'Universidad' },
@@ -469,23 +477,35 @@ function Dashboard() {
     const mapa = {};
     preguntas.forEach((pregunta) => {
       const areaKey = String(pregunta.id_area ?? 'sin_area');
-      const maxPregunta = Number(pregunta.valor) || MAX_OPTION;
+      const maxPregunta = Number(pregunta.valor) || 0;
       mapa[areaKey] = (mapa[areaKey] || 0) + maxPregunta;
     });
     return mapa;
   }, [preguntas]);
 
+  const opcionesRespuesta = useMemo(() => {
+    const opciones = preguntas.find((pregunta) => Array.isArray(pregunta.opciones))?.opciones || OPCIONES;
+    return opciones.map((opcion) => ({
+      label: opcion.label || opcion.respuesta,
+      value: Number(opcion.value ?? opcion.valor),
+    }));
+  }, [preguntas]);
+
+  const maxOption = useMemo(() => {
+    return Math.max(...opcionesRespuesta.map((opcion) => Number(opcion.value) || 0), 5);
+  }, [opcionesRespuesta]);
+
   const puntajePorArea = useMemo(() => {
     const mapa = {};
     preguntas.forEach((pregunta) => {
       const areaKey = String(pregunta.id_area ?? 'sin_area');
-      const maxPregunta = Number(pregunta.valor) || MAX_OPTION;
+      const maxPregunta = Number(pregunta.valor) || 0;
       const respuesta = Number(respuestas[pregunta.id]) || 0;
-      const valorNormalizado = (respuesta / MAX_OPTION) * maxPregunta;
+      const valorNormalizado = (respuesta / maxOption) * maxPregunta;
       mapa[areaKey] = (mapa[areaKey] || 0) + valorNormalizado;
     });
     return mapa;
-  }, [preguntas, respuestas]);
+  }, [maxOption, preguntas, respuestas]);
 
   const resultados = useMemo(() => {
     return Object.keys(maxPorArea)
@@ -876,19 +896,16 @@ function Dashboard() {
 
         return (
           <div className="prueba-container">
-            <div className="prueba-hero">
-              <div>
-                <span className="prueba-badge">Orientacion vocacional</span>
-                <h2>Prueba Vocacional</h2>
-                <p>Responde con calma. Tus respuestas ayudan a sugerir areas y opciones academicas mas cercanas a tus intereses.</p>
-              </div>
-              <div className="prueba-progress-card" aria-label={`Progreso ${progressPercent}%`}>
-                <strong>{progressPercent}%</strong>
-                <span>{answeredCount} de {totalQuestions || 0} respuestas</span>
-                <div className="prueba-progress-track">
-                  <div style={{ width: `${progressPercent}%` }} />
-                </div>
-              </div>
+            <h2>Prueba Vocacional</h2>
+            <div className="prueba-instrucciones">
+              <p>
+                Lee cada enunciado y elige la opción con la que más te identifiques teniendo en cuenta la siguiente puntuación:
+              </p>
+              <ul>
+                {TEST_INSTRUCTIONS.map((instruction) => (
+                  <li key={instruction}>{instruction}</li>
+                ))}
+              </ul>
             </div>
             {cargandoPreguntas && (
               <div className="prueba-loading">Cargando preguntas...</div>
@@ -907,7 +924,7 @@ function Dashboard() {
                 </div>
                 <h3>{pregunta.pregunta}</h3>
                 <div className="opciones">
-                  {OPCIONES.map((opcion) => {
+                  {opcionesRespuesta.map((opcion) => {
                     const active = respuestas[pregunta.id] === opcion.value;
                     return (
                       <button
